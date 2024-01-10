@@ -51,8 +51,6 @@ def trainval(cur_epoch, total_epoch, model, loader, criterion, optimizer, split)
     width = 10  # Total width including the string length
     formatted_split = split.rjust(width)
 
-    # if self.args.master:
-    #     print(f'rank {self.args.rank} num_img_tr: {num_img_tr}')
     for iter, sample in enumerate(tbar):
         keypoint_uv21 = sample['keypoint_uv21'].to(device)
         keypoint_xyz21_normed = sample['keypoint_xyz21_normed'].to(device)
