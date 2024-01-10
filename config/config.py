@@ -1,5 +1,9 @@
 dataset_root_dir = 'dataset/RHD'
+save_log_dir = 'logs'
+dataset_name = 'RHD'
+
 max_epoch = 100
+
 
 condition_feat_dim = 256
 num_timesteps = 500
