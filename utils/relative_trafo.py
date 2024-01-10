@@ -1,4 +1,5 @@
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
 
 def _stitch_mat_from_vecs(vector_list):
@@ -190,54 +191,54 @@ def bone_rel_trafo(coords_xyz):
         Inputs:
             coords_xyz: BxNx3 matrix, containing the coordinates for each of the N keypoints
     """
-    with tf.variable_scope('bone_rel_transformation'):
-        coords_xyz = tf.reshape(coords_xyz, [-1, 21, 3])
+    # with tf.variable_scope('bone_rel_transformation'):
+    coords_xyz = tf.reshape(coords_xyz, [-1, 21, 3])
 
-        # list of results
-        trafo_list = [None for _ in kinematic_chain_list]
-        coords_rel_list = [0.0 for _ in kinematic_chain_list]
+    # list of results
+    trafo_list = [None for _ in kinematic_chain_list]
+    coords_rel_list = [0.0 for _ in kinematic_chain_list]
 
-        # Iterate kinematic chain list (from root --> leaves)
-        for bone_id in kinematic_chain_list:
+    # Iterate kinematic chain list (from root --> leaves)
+    for bone_id in kinematic_chain_list:
 
-            # get parent of current bone
-            parent_id = kinematic_chain_dict[bone_id]
+        # get parent of current bone
+        parent_id = kinematic_chain_dict[bone_id]
 
-            if parent_id == 'root':
+        if parent_id == 'root':
 
-                # if there is no parent global = local
-                delta_vec = _to_hom(tf.expand_dims(coords_xyz[:, bone_id, :], 1))
-                T = _get_trans_mat_hom(tf.zeros_like(coords_xyz[:, 0, 0]))
+            # if there is no parent global = local
+            delta_vec = _to_hom(tf.expand_dims(coords_xyz[:, bone_id, :], 1))
+            T = _get_trans_mat_hom(tf.zeros_like(coords_xyz[:, 0, 0]))
 
-                # get articulation angles from bone vector
-                results = _backward(delta_vec, T)
+            # get articulation angles from bone vector
+            results = _backward(delta_vec, T)
 
-                # save results
-                coords_rel_list[bone_id] = tf.stack(results[:3], 1)
-                trafo_list[bone_id] = results[3]
+            # save results
+            coords_rel_list[bone_id] = tf.stack(results[:3], 1)
+            trafo_list[bone_id] = results[3]
 
-            else:
-                T = trafo_list[parent_id]  #by sticking to the order defined in kinematic_chain_list its ensured, that this is avail
-                assert T is not None, 'Something went wrong.'
+        else:
+            T = trafo_list[parent_id]  #by sticking to the order defined in kinematic_chain_list its ensured, that this is avail
+            assert T is not None, 'Something went wrong.'
 
-                # calculate coords in local system
-                x_local_parent = tf.matmul(T, _to_hom(tf.expand_dims(coords_xyz[:, parent_id, :], 1)))
-                x_local_child = tf.matmul(T, _to_hom(tf.expand_dims(coords_xyz[:, bone_id, :], 1)))
+            # calculate coords in local system
+            x_local_parent = tf.matmul(T, _to_hom(tf.expand_dims(coords_xyz[:, parent_id, :], 1)))
+            x_local_child = tf.matmul(T, _to_hom(tf.expand_dims(coords_xyz[:, bone_id, :], 1)))
 
-                # calculate bone vector in local coords
-                delta_vec = x_local_child - x_local_parent
-                delta_vec = _to_hom(tf.expand_dims(delta_vec[:, :3, :], 1))
+            # calculate bone vector in local coords
+            delta_vec = x_local_child - x_local_parent
+            delta_vec = _to_hom(tf.expand_dims(delta_vec[:, :3, :], 1))
 
-                # get articulation angles from bone vector
-                results = _backward(delta_vec, T)
+            # get articulation angles from bone vector
+            results = _backward(delta_vec, T)
 
-                # save results
-                coords_rel_list[bone_id] = tf.stack(results[:3], 1)
-                trafo_list[bone_id] = results[3]
+            # save results
+            coords_rel_list[bone_id] = tf.stack(results[:3], 1)
+            trafo_list[bone_id] = results[3]
 
-        coords_rel = tf.stack(coords_rel_list, 1)
+    coords_rel = tf.stack(coords_rel_list, 1)
 
-        return coords_rel
+    return coords_rel
 
 
 def bone_rel_trafo_inv(coords_rel):
@@ -246,50 +247,50 @@ def bone_rel_trafo_inv(coords_rel):
         Inputs:
             coords_rel: BxNx3 matrix, containing the coordinates for each of the N keypoints [length, angle_x, angle_y]
     """
-    with tf.variable_scope('assemble_bone_rel'):
+    # with tf.variable_scope('assemble_bone_rel'):
+    s = coords_rel.get_shape().as_list()
+    if len(s) == 2:
+        coords_rel = tf.expand_dims(coords_rel, 0)
         s = coords_rel.get_shape().as_list()
-        if len(s) == 2:
-            coords_rel = tf.expand_dims(coords_rel, 0)
-            s = coords_rel.get_shape().as_list()
-        assert len(s) == 3, "Has to be a batch of coords."
+    assert len(s) == 3, "Has to be a batch of coords."
 
-        # list of results
-        trafo_list = [None for _ in kinematic_chain_list]
-        coords_xyz_list = [0.0 for _ in kinematic_chain_list]
+    # list of results
+    trafo_list = [None for _ in kinematic_chain_list]
+    coords_xyz_list = [0.0 for _ in kinematic_chain_list]
 
-        # Iterate kinematic chain list (from root --> leaves)
-        for bone_id in kinematic_chain_list:
+    # Iterate kinematic chain list (from root --> leaves)
+    for bone_id in kinematic_chain_list:
 
-            # get parent of current bone
-            parent_id = kinematic_chain_dict[bone_id]
+        # get parent of current bone
+        parent_id = kinematic_chain_dict[bone_id]
 
-            if parent_id == 'root':
-                # if there is no parent global = local
-                T = _get_trans_mat_hom(tf.zeros_like(coords_rel[:, 0, 0]))
+        if parent_id == 'root':
+            # if there is no parent global = local
+            T = _get_trans_mat_hom(tf.zeros_like(coords_rel[:, 0, 0]))
 
-                # get articulation angles from bone vector
-                x, T = _forward(length=coords_rel[:, bone_id, 0],
-                                angle_x=coords_rel[:, bone_id, 1],
-                                angle_y=coords_rel[:, bone_id, 2],
-                                T=T)
+            # get articulation angles from bone vector
+            x, T = _forward(length=coords_rel[:, bone_id, 0],
+                            angle_x=coords_rel[:, bone_id, 1],
+                            angle_y=coords_rel[:, bone_id, 2],
+                            T=T)
 
-                # save results
-                coords_xyz_list[bone_id] = tf.squeeze(_from_hom(x), [2])
-                trafo_list[bone_id] = T
+            # save results
+            coords_xyz_list[bone_id] = tf.squeeze(_from_hom(x), [2])
+            trafo_list[bone_id] = T
 
-            else:
-                T = trafo_list[parent_id]  #by sticking to the order defined in kinematic_chain_list its ensured, that this is avail
-                assert T is not None, 'Something went wrong.'
+        else:
+            T = trafo_list[parent_id]  #by sticking to the order defined in kinematic_chain_list its ensured, that this is avail
+            assert T is not None, 'Something went wrong.'
 
-                # get articulation angles from bone vector
-                x, T = _forward(length=coords_rel[:, bone_id, 0],
-                                angle_x=coords_rel[:, bone_id, 1],
-                                angle_y=coords_rel[:, bone_id, 2],
-                                T=T)
+            # get articulation angles from bone vector
+            x, T = _forward(length=coords_rel[:, bone_id, 0],
+                            angle_x=coords_rel[:, bone_id, 1],
+                            angle_y=coords_rel[:, bone_id, 2],
+                            T=T)
 
-                # save results
-                coords_xyz_list[bone_id] = tf.squeeze(_from_hom(x), [2])
-                trafo_list[bone_id] = T
+            # save results
+            coords_xyz_list[bone_id] = tf.squeeze(_from_hom(x), [2])
+            trafo_list[bone_id] = T
 
-        coords_xyz = tf.stack(coords_xyz_list, 1)
-        return coords_xyz
+    coords_xyz = tf.stack(coords_xyz_list, 1)
+    return coords_xyz

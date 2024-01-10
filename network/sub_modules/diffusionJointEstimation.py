@@ -37,6 +37,6 @@ class DiffusionJointEstimation(torch.nn.Module):
         return diffusion_loss
 
     def joint_coord_sampling(self, resnet_features):
-        joint_coord = self.diffusionModel.sample(self, batch_size = self.batch_size, condition = resnet_features)
+        joint_coord = self.diffusionModel.sample(batch_size=self.batch_size, condition=resnet_features)
         return joint_coord
 

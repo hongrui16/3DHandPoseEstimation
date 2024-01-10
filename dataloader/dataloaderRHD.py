@@ -8,7 +8,13 @@ import pickle
 import os
 import numpy as np
 import cv2
-import tensorflow as tf
+# import tensorflow as tf
+
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+tf.compat.v1.enable_eager_execution()
+
+
 import sys
 # sys.path.append('../')  
 
@@ -334,13 +340,22 @@ class RHD_HandKeypointsDataset(Dataset):
             data_dict['image'], data_dict['hand_parts'], data_dict['hand_mask'] = tensor_stack_cropped[:, :, :3],\
                                                                                   tf.cast(tensor_stack_cropped[:, :, 3], tf.int32),\
                                                                                   tf.cast(tensor_stack_cropped[:, :, 4:], tf.int32)
+        sess = tf.Session()
 
         data_dict['image'] = image
-        for key, value in data_dict.items():            
+        for key, value in data_dict.items():   
+            value = sess.run(value)         
+            # value = value_evaluated.numpy()
+            if isinstance(value, np.ndarray):
+                torch_value = torch.Tensor(value)
+            else:
+                # If value is a single value, put it into a list and convert it to torch.Tensor
+                torch_value = torch.Tensor([value])
             if key == 'image':
-                torch_image = torch.Tensor(value)
-                value = torch_image.permute(0, 3, 1, 2)
-            data_dict[key] = torch.Tensor(value)
+                torch_value = torch_value.permute(2, 0, 1)
+            data_dict[key] = torch.Tensor(torch_value)
+            
+        sess.close()
 
         names, tensors = zip(*data_dict.items())
 
@@ -412,7 +427,7 @@ if __name__ == '__main__':
     dataset = RHD_HandKeypointsDataset(root_dir='dataset/RHD', set_type='evaluation', transform=transforms, debug=True)
 
     # Creating the DataLoader
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
     '''
     {'img_name': img_name,
                     'image': image, 'mask': mask, 'depth': depth,
@@ -437,8 +452,9 @@ if __name__ == '__main__':
         # print('kp_coord_uv:', keypoints_uv)
         # print('keypoints_uv_visible:', keypoints_uv_visible)
     
-        print('keypoints_xyz.shape:', keypoints_xyz.shape) # torch.Size([1, 42, 3])
-        print('keypoints_uv.shape:', keypoints_uv.shape) # torch.Size([1, 42, 2])
-        print('keypoints_uv_visible.shape:', keypoints_uv_visible.shape) # torch.Size([1, 42, 1])
+        # print('keypoints_xyz.shape:', keypoints_xyz.shape) # torch.Size([1, 42, 3])
+        # print('keypoints_uv.shape:', keypoints_uv.shape) # torch.Size([1, 42, 2])
+        # print('keypoints_uv_visible.shape:', keypoints_uv_visible.shape) # torch.Size([1, 42, 1])
         print('camera_matrices.shape:', camera_matrices.shape) # torch.Size([1, 3, 3])
-        break
+        print('camera_matrices', camera_matrices)
+        # break

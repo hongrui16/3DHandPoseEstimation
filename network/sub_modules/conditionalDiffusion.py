@@ -524,7 +524,7 @@ class GaussianDiffusion1D(nn.Module):
         self.is_ddim_sampling = self.sampling_timesteps < timesteps
         self.ddim_sampling_eta = ddim_sampling_eta
 
-        print('self.is_ddim_sampling: ',self.is_ddim_sampling)
+        # print('self.is_ddim_sampling: ',self.is_ddim_sampling)
 
         # helper function to register buffer from float64 to float32
 
@@ -781,7 +781,10 @@ class GaussianDiffusion1D(nn.Module):
 
     def forward(self, img, condition = None, *args, **kwargs):
         # print('img.shape', img.shape) # torch.Size([64, 32, 128])
-        b, c, n, device, seq_length, = *img.shape, img.device, self.seq_length
+        b, c, n = img.shape
+        device = img.device
+        seq_length = self.seq_length
+        # print(f'b, c, n, device, seq_length: {b, c, n, device, seq_length}')
         assert n == seq_length, f'seq length must be {seq_length}'
         t = torch.randint(0, self.num_timesteps, (b,), device=device).long()
 

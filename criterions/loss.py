@@ -9,16 +9,18 @@ class L2Loss(nn.Module):
 
     def forward(self, pre_xyz, gt_xyz, keypoint_vis):
         # Calculate the square of the Euclidean distance
-        squared_distance = torch.sum((pre_xyz - gt_xyz) ** 2, dim=2) # Calculate along the third dimension
+        squared_distance = torch.sum((pre_xyz - gt_xyz) ** 2, dim=2)  # Calculate along the third dimension
 
-        # Select valid key points through mask
-        masked_distance = squared_distance * keypoint_vis.squeeze(-1) # Remove the extra dimension of the mask
+        # Apply the mask to select valid keypoints
+        # Convert keypoint_vis to bool for masking
+        masked_distance = torch.masked_select(squared_distance, keypoint_vis.squeeze(-1).to(dtype=torch.bool))
 
-        # Calculate L2 loss for each valid keypoint
-        loss_per_keypoint = torch.mean(masked_distance, dim=1) # Calculate along the second dimension
+        # If there are no valid keypoints, return 0 to avoid division by zero
+        if masked_distance.numel() == 0:
+            return torch.tensor(0.0, device=squared_distance.device)
 
         # Calculate the average to get the overall L2 loss
-        total_loss = torch.mean(loss_per_keypoint)
+        total_loss = torch.mean(masked_distance)
 
         return total_loss
 
@@ -29,18 +31,20 @@ class L1Loss(nn.Module):
 
     def forward(self, pre_xyz, gt_xyz, keypoint_vis):
         # Calculate the absolute difference
-        absolute_difference = torch.abs(pre_xyz - gt_xyz)
+        absolute_difference = torch.sum(torch.abs(pre_xyz - gt_xyz), dim=2)
 
-        # Select valid key points through mask
-        masked_difference = absolute_difference * keypoint_vis.squeeze(-1) # Remove the extra dimension of the mask
+        # Convert keypoint_vis to bool for masking
+        masked_distance = torch.masked_select(absolute_difference, keypoint_vis.squeeze(-1).to(dtype=torch.bool))
 
-        # Calculate L1 loss for each valid keypoint
-        loss_per_keypoint = torch.mean(masked_difference, dim=1) # Calculate along the second dimension
+        # If there are no valid keypoints, return 0 to avoid division by zero
+        if masked_distance.numel() == 0:
+            return torch.tensor(0.0, device=absolute_difference.device)
 
         # Calculate the average to get the overall L1 loss
-        total_loss = torch.mean(loss_per_keypoint)
+        total_loss = torch.mean(masked_distance)
 
         return total_loss
+
 
 
 class ContrastiveLoss(nn.Module):
@@ -81,10 +85,10 @@ class LossCalculation(nn.Module):
         return self.ContrastiveLossObj(feat1, feat2, label)
     
     def forward(self, pre_xyz, gt_xyz, pre_uv, gt_uv, keypoint_vis, feat1 = None, feat2 = None, label = None):
-        loss_xyz = self.compute_3d_coord_loss(self, pre_xyz, gt_xyz, keypoint_vis)
+        loss_xyz = self.compute_3d_coord_loss(pre_xyz, gt_xyz, keypoint_vis)
 
         if self.uv_loss:
-            loss_uv = self.compute_uv_coord_loss(self, pre_uv, gt_uv, keypoint_vis)
+            loss_uv = self.compute_uv_coord_loss(pre_uv, gt_uv, keypoint_vis)
         else:
             loss_uv = 0
 
@@ -95,3 +99,5 @@ class LossCalculation(nn.Module):
         
         loss = loss_xyz + loss_uv + loss_contrast
         return loss
+
+
