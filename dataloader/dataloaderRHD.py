@@ -79,6 +79,7 @@ class RHD_HandKeypointsDataset(Dataset):
         mask = cv2.imread(os.path.join(self.root_dir, self.set_type, 'mask', f'{idx:05d}.png'),  0)
         depth = cv2.imread(os.path.join(self.root_dir, self.set_type, 'depth', f'{idx:05d}.png'))
         
+        height, width, _ = image.shape
 
         # Extract annotations
         anno = self.annotations[idx]
@@ -182,7 +183,15 @@ class RHD_HandKeypointsDataset(Dataset):
                              tf.constant(1, dtype=tf.int32))  # left hand = 0; right hand = 1
         data_dict['hand_side'] = tf.one_hot(hand_side, depth=2, on_value=1.0, off_value=0.0, dtype=tf.float32)
 
+
+        ### If it is the left hand, invert the X-axis coordinates
+        kp_coord_xyz21 = tf.where(tf.equal(hand_side, 0),
+                          tf.concat([-kp_coord_xyz21[..., :1], kp_coord_xyz21[..., 1:]], axis=-1),
+                          kp_coord_xyz21)
+
+
         data_dict['keypoint_xyz21'] = kp_coord_xyz21
+
 
         # make coords relative to root joint
         kp_coord_xyz_root = kp_coord_xyz21[0, :] # this is the palm coord
@@ -196,6 +205,8 @@ class RHD_HandKeypointsDataset(Dataset):
         kp_coord_xyz21_local = tf.squeeze(kp_coord_xyz21_local)
         data_dict['keypoint_xyz21_local'] = kp_coord_xyz21_local
 
+        '''
+        the following part seems has problem, and needs to be verified
         # calculate viewpoint and coords in canonical coordinates
         kp_coord_xyz21_rel_can, rot_mat = canonical_trafo(data_dict['keypoint_xyz21_normed'])
         kp_coord_xyz21_rel_can, rot_mat = tf.squeeze(kp_coord_xyz21_rel_can), tf.squeeze(rot_mat)
@@ -203,6 +214,8 @@ class RHD_HandKeypointsDataset(Dataset):
         data_dict['keypoint_xyz21_can'] = kp_coord_xyz21_rel_can
         data_dict['rot_mat'] = tf.matrix_inverse(rot_mat)
 
+        '''
+        
         # Set of 21 for visibility
         keypoint_vis_left = keypoint_vis[:21]
         keypoint_vis_right = keypoint_vis[-21:]
@@ -213,7 +226,16 @@ class RHD_HandKeypointsDataset(Dataset):
         keypoint_uv_left = keypoint_uv[:21, :]
         keypoint_uv_right = keypoint_uv[-21:, :]
         keypoint_uv21 = tf.where(cond_left[:, :2], keypoint_uv_left, keypoint_uv_right)
-        data_dict['keypoint_uv21'] = keypoint_uv21
+
+
+        ### new added
+        #If it is the left hand, perform a mirror transformation on the U coordinate
+        #Assuming hand_ Side 0 represents left hand, 1 represents right hand
+        mirrored_u = tf.where(tf.equal(hand_side, 0), width - keypoint_uv21[:, 0], keypoint_uv21[:, 0])
+        # update the keypoint_uv21 in the data_dict
+        data_dict['keypoint_uv21'] = tf.concat([mirrored_u[:, tf.newaxis], keypoint_uv21[:, 1:2]], axis=1)
+
+
 
         """ DEPENDENT DATA ITEMS: HAND CROP """
         if self.hand_crop:
