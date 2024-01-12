@@ -99,7 +99,7 @@ class Worker(object):
                     refined_joint_coord, diffusion_loss, resnet_features = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length)
                     keypoint_xyz21_normed_pred, keypoint_uv_pred = refined_joint_coord
                     keypoint_xyz21_pred = keypoint_xyz21_normed_pred *  index_root_bone_length.unsqueeze(2)
-                    mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, kp_coord_xyz21_rel_gt, keypoint_vis21_gt, index_root_bone_length)
+                    mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, kp_coord_xyz21_rel_gt, keypoint_vis21_gt)
             
 
             loss_part1 = self.criterion(keypoint_xyz21_pred, kp_coord_xyz21_rel_gt, keypoint_uv_pred, keypoint_uv21_gt, keypoint_vis21_gt) 
