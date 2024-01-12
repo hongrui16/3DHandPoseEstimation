@@ -73,28 +73,36 @@ class Worker(object):
         for iter, sample in enumerate(tbar):
             if fast_debug and iter > 2:
                 break
-            keypoint_uv21 = sample['keypoint_uv21'].to(self.device)
-            keypoint_xyz21_normed = sample['keypoint_xyz21_normed'].to(self.device)
-            keypoint_vis21 = sample['keypoint_vis21'].to(self.device)
             image = sample['image'].to(self.device)
-            camera_matrix = sample['cam_mat'].to(self.device)
-            index_root_bone_length = sample['keypoint_scale'].to(self.device)
 
-            bs, num_points, c = keypoint_xyz21_normed.shape
-            pose_x0 = keypoint_xyz21_normed.view(batch_size,-1, num_points*c)
+            keypoint_xyz21_normed_gt = sample['keypoint_xyz21_normed'].to(self.device) ## normalized xyz coordinates
+            keypoint_vis21_gt = sample['keypoint_vis21'].to(self.device) # visiable points mask
+            index_root_bone_length = sample['keypoint_scale'].to(self.device) #scale length
+
+            keypoint_uv21_gt = sample['keypoint_uv21'].to(self.device) # uv coordinate
+
+            camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
+
+            bs, num_points, c = keypoint_xyz21_normed_gt.shape
+            pose_x0 = keypoint_xyz21_normed_gt.view(batch_size,-1, num_points*c)
+
+            kp_coord_xyz21_rel_gt = keypoint_xyz21_normed_gt *  index_root_bone_length.unsqueeze(2) # Relative xyz coordinates
+
             self.optimizer.zero_grad()
             if split == 'training':
-                refined_joint_coord, diffusion_loss, resnet_features = self.model(image, camera_matrix, pose_x0)
-                pred_xyz_coordinates, pred_uv_coordinates = refined_joint_coord
+                refined_joint_coord, diffusion_loss, resnet_features = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length)
+                keypoint_xyz21_normed_pred, keypoint_uv_pred = refined_joint_coord
+                keypoint_xyz21_pred = keypoint_xyz21_normed_pred *  index_root_bone_length.unsqueeze(2)
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    refined_joint_coord, diffusion_loss, resnet_features = self.model(image, camera_matrix, pose_x0)
-                    pred_xyz_coordinates, pred_uv_coordinates = refined_joint_coord
-                    mpjpe = self.metric_mpjpe(pred_xyz_coordinates, keypoint_xyz21_normed, keypoint_vis21)
+                    refined_joint_coord, diffusion_loss, resnet_features = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length)
+                    keypoint_xyz21_normed_pred, keypoint_uv_pred = refined_joint_coord
+                    keypoint_xyz21_pred = keypoint_xyz21_normed_pred *  index_root_bone_length.unsqueeze(2)
+                    mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, kp_coord_xyz21_rel_gt, keypoint_vis21_gt, index_root_bone_length)
             
 
-            loss_part1 = self.criterion(pred_xyz_coordinates, keypoint_xyz21_normed, pred_uv_coordinates, keypoint_uv21, keypoint_vis21) 
+            loss_part1 = self.criterion(keypoint_xyz21_pred, kp_coord_xyz21_rel_gt, keypoint_uv_pred, keypoint_uv21_gt, keypoint_vis21_gt) 
             loss = loss_part1 + diffusion_loss
             if split == 'training':
                 loss.backward()

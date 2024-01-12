@@ -11,16 +11,14 @@ Fingers except thumb: For each such finger, there are two key points from the fi
 In addition, the place where each finger is connected to the palm can be used for both flexion/extension and abduction/adduction, 
 which constitutes 2 DOF. Added up, the total is 4 DOF. Since we have 4 of these Fingers, a total of 4 * 4 = 16 DOF.
 
-
+right hand coordinate system
 X-axis: Points in the direction of your thumb, horizontally to the right.
-Z-axis: perpendicular to the direction of the palm, upward.
-Y-axis: Points in the direction of the tip of the middle finger, forward.
-(In data processing, # 2. Rotate and scale keypoints such that the root bone is of unit length and aligned with the y axis
-)
+Y-axis: perpendicular to the direction of the palm, upward.
+Z-axis: Points in the direction of the tip of the middle finger, forward.
 
 If the middle finger is bent 10 degrees downward, it is a rotation around the X-axis
-The expansion/merging of the index finger (Abduction/Adduction) is performed around the Z-axis.
-If the entire palm rotates about the direction of the tip of the middle finger (i.e. the Y-axis), then this is a rotation about the Y-axis.
+The expansion/merging of the index finger (Abduction/Adduction) is performed around the Y-axis.
+If the entire palm rotates about the direction of the tip of the middle finger (i.e. the Z-axis), then this is a rotation about the Z-axis.
 
 nodes = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'C4', 'D1', 'D2', 'D3', 'D4', 'E1', 'E2', 'E3', 'E4']
 

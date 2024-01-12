@@ -82,4 +82,21 @@ def xyz2uv_numpy():
 
 if __name__ == '__main__':
 
-     xyz2uv_numpy()
+    xyz2uv_numpy()
+
+
+    bs = 2
+    num_points = 10
+
+    # 创建示例张量
+    points_3d_reshaped = torch.rand(bs, 3, num_points)  # 随机值用于点
+    index_root_bone_length = torch.rand(bs, 1)  # 随机值用于骨骼长度
+
+    # 仅使用一次 unsqueeze 扩展 index_root_bone_length 的形状
+    index_root_bone_length_expanded = index_root_bone_length.unsqueeze(2)
+
+    # 执行乘法运算
+    result = points_3d_reshaped * index_root_bone_length_expanded
+
+    # 输出结果的形状以确认
+    result.shape

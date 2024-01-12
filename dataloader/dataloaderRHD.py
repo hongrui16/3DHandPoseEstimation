@@ -89,9 +89,9 @@ class RHD_HandKeypointsDataset(Dataset):
 
         if self.debug:
             return {'img_name': img_name,
-                    'image': image, 'mask': mask, 'depth': depth,
+                    'image': image, 'hand_mask': mask, 'hand_side': None,
                   'keypoint_uv': keypoint_uv, 'keypoint_vis': keypoint_vis,
-                  'kp_coord_xyz': keypoint_xyz, 'camera_intrinsic_matrix': camera_intrinsic_matrix}
+                  'keypoint_xyz': keypoint_xyz, 'camera_intrinsic_matrix': camera_intrinsic_matrix}
 
 
 
@@ -124,9 +124,9 @@ class RHD_HandKeypointsDataset(Dataset):
         data_dict['keypoint_uv'] = keypoint_uv
 
         # 3. Camera intrinsics
-        cam_mat = tf.convert_to_tensor(camera_intrinsic_matrix, dtype=tf.float32)
+        camera_intrinsic_matrix = tf.convert_to_tensor(camera_intrinsic_matrix, dtype=tf.float32)
 
-        data_dict['cam_mat'] = cam_mat
+        data_dict['camera_intrinsic_matrix'] = camera_intrinsic_matrix
 
         # decode to uint8
         # 4. Read image
@@ -293,7 +293,7 @@ class RHD_HandKeypointsDataset(Dataset):
                                                                [0.0], [0.0], [1.0]])
             trans_matrix = tf.reshape(trans_matrix, [3, 3])
 
-            data_dict['cam_mat'] = tf.matmul(trans_matrix, tf.matmul(scale_matrix, cam_mat))
+            data_dict['camera_intrinsic_matrix'] = tf.matmul(trans_matrix, tf.matmul(scale_matrix, camera_intrinsic_matrix))
 
         """ DEPENDENT DATA ITEMS: Scoremap from the SUBSET of 21 keypoints"""
         # create scoremaps from the subset of 2D annoataion
@@ -341,7 +341,7 @@ class RHD_HandKeypointsDataset(Dataset):
                                                                                   tf.cast(tensor_stack_cropped[:, :, 3], tf.int32),\
                                                                                   tf.cast(tensor_stack_cropped[:, :, 4:], tf.int32)
         sess = tf.Session()
-
+        
         data_dict['image'] = image
         for key, value in data_dict.items():   
             value = sess.run(value)         
@@ -357,6 +357,7 @@ class RHD_HandKeypointsDataset(Dataset):
             
         sess.close()
 
+        data_dict['img_name'] = img_name
         names, tensors = zip(*data_dict.items())
 
         return dict(zip(names, tensors))
@@ -424,7 +425,7 @@ if __name__ == '__main__':
             tr.ToTensor()])
 
     # Creating the dataset
-    dataset = RHD_HandKeypointsDataset(root_dir='dataset/RHD', set_type='evaluation', transform=transforms, debug=True)
+    dataset = RHD_HandKeypointsDataset(root_dir='dataset/RHD', set_type='evaluation', transform=transforms, debug=False)
 
     # Creating the DataLoader
     dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
@@ -439,22 +440,25 @@ if __name__ == '__main__':
     # Usage example
     for batch in dataloader:
         images = batch['image']
-        masks = batch['mask']
-        depths = batch['depth']
+        masks = batch['hand_mask']
         keypoints_uv = batch['keypoint_uv']
         keypoints_uv_visible = batch['keypoint_vis']
-        keypoints_xyz = batch['kp_coord_xyz']
+        keypoints_xyz = batch['keypoint_xyz']
+        keypoint_uv21 = batch['keypoint_uv21']
         camera_matrices = batch['camera_intrinsic_matrix']
-        
+        index_root_bone_length = batch['keypoint_scale']
         img_name = batch['img_name']
+        hand_side = batch['hand_side']
         print('img_name:', img_name)
         # print('keypoints_xyz:', keypoints_xyz)
         # print('kp_coord_uv:', keypoints_uv)
         # print('keypoints_uv_visible:', keypoints_uv_visible)
     
-        # print('keypoints_xyz.shape:', keypoints_xyz.shape) # torch.Size([1, 42, 3])
-        # print('keypoints_uv.shape:', keypoints_uv.shape) # torch.Size([1, 42, 2])
-        # print('keypoints_uv_visible.shape:', keypoints_uv_visible.shape) # torch.Size([1, 42, 1])
-        print('camera_matrices.shape:', camera_matrices.shape) # torch.Size([1, 3, 3])
+        print('keypoints_xyz.shape:', keypoints_xyz.shape) # torch.Size([BS, 42, 3])
+        print('keypoint_uv21.shape:', keypoint_uv21.shape) # torch.Size([BS, 21, 3])
+        print('keypoints_uv.shape:', keypoints_uv.shape) # torch.Size([BS, 42, 2])
+        # print('keypoints_uv_visible.shape:', keypoints_uv_visible.shape) # torch.Size([BS, 42, 1])
+        print('camera_matrices.shape:', camera_matrices.shape) # torch.Size([BS, 3, 3])
         print('camera_matrices', camera_matrices)
-        # break
+        print('index_root_bone_length.shape:', index_root_bone_length.shape) # torch.Size([BS, 1])
+        break

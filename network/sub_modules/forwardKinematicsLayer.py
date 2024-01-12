@@ -76,17 +76,17 @@ class ForwardKinematics(nn.Module):
         super(ForwardKinematics, self).__init__()
         self.device = device
     
-    def forward(self, root_angles, other_angles, bone_lengths, camera_intrinsic_matrix):
+    def forward(self, root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length):
         '''
+        right hand coordinate system
         X-axis: Points in the direction of your thumb, horizontally to the right.
-        Z-axis: perpendicular to the direction of the palm, upward.
-        Y-axis: Points in the direction of the tip of the middle finger, forward.
-        (In data processing, # 2. Rotate and scale keypoints such that the root bone is of unit length and aligned with the y axis
-        )
+        Y-axis: perpendicular to the direction of the palm, upward.
+        Z-axis: Points in the direction of the tip of the middle finger, forward.
 
+        
         If the middle finger is bent 10 degrees downward, it is a rotation around the X-axis
-        The expansion/merging of the index finger (Abduction/Adduction) is performed around the Z-axis.
-        If the entire palm rotates about the direction of the tip of the middle finger (i.e. the Y-axis), then this is a rotation about the Y-axis.
+        The expansion/merging of the index finger (Abduction/Adduction) is performed around the Y-axis.
+        If the entire palm rotates about the direction of the tip of the middle finger (i.e. the Z-axis), then this is a rotation about the Z-axis.
 
         nodes = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'C4', 'D1', 'D2', 'D3', 'D4', 'E1', 'E2', 'E3', 'E4']
 
@@ -113,10 +113,10 @@ class ForwardKinematics(nn.Module):
             ## thumb
             other_angles[0:3] is the three rotation angles of A1 in the x y z direction, A1
             other_angles[3:6] is the three rotation angles of A2 in the x y z direction, A2
-            other_angles[6] is a rotation angle in the z direction of A3
+            other_angles[6] is a rotation angle in the Y direction of A3
 
             ## other fingers
-            other_angles[7:9] is the two rotation angles of B1 in the x and z directions
+            other_angles[7:9] is the two rotation angles of B1 in the x and Y directions
             other_angles[9] is a rotation angle in the x direction of B2
             other_angles[10] is a rotation angle in the x direction of B3
             C/D/E, all *1 have two rotation angles in the x and z directions, *2, *3 only have one rotation angle in the x direction
@@ -167,9 +167,9 @@ class ForwardKinematics(nn.Module):
                     joint_angles = other_angles[:, angle_idx:angle_idx+3]
                     joint_local_rotation = get_batch_rotation_matrix(joint_angles, self.device)
                     angle_idx += 3                
-                elif node.endswith('3'):  # Second and third joint of each finger, has only z rotation angle
+                elif node.endswith('3'):  # Second and third joint of each finger, has only Y rotation angle
                     joint_angles = torch.zeros((joint_angles.shape[0], 3), device=self.device)
-                    joint_angles[:, 2] = other_angles[:, angle_idx]
+                    joint_angles[:, 1] = other_angles[:, angle_idx]
                     # print(f'joint_angles.shape: {joint_angles.shape}') ##  torch.Size([bs, 3])
                     joint_local_rotation = get_batch_rotation_matrix(joint_angles, self.device)
                     angle_idx += 1
@@ -181,10 +181,10 @@ class ForwardKinematics(nn.Module):
             else:
                 ## finger = 'others'
                 # Get the rotation for the current node
-                if node.endswith('1'):  # First joint of each finger, has x, y, z rotation angles
+                if node.endswith('1'):  # First joint of each finger, has x, y rotation angles
                     joint_angles = torch.zeros((joint_angles.shape[0], 3), device=self.device)
                     joint_angles[:, 0] = other_angles[:, angle_idx] # x angles
-                    joint_angles[:, 2] = other_angles[:, angle_idx+1] # z angles
+                    joint_angles[:, 1] = other_angles[:, angle_idx+1] # Y angles
                     joint_local_rotation = get_batch_rotation_matrix(joint_angles, self.device)
                     angle_idx += 2
                 
@@ -239,17 +239,17 @@ class ForwardKinematics(nn.Module):
             # print(f'positions_xyz.shape', positions_xyz.shape) # torch.Size([bs, num_joint, 3])
 
         # print(f'positions_xyz.shape', positions_xyz.shape) # torch.Size([bs, 21, 3])
-        positions_uv = self.project(positions_xyz, self.camera_intrinsic_matrix)
+        positions_uv = self.project(positions_xyz, self.camera_intrinsic_matrix, index_root_bone_length)
         return [positions_xyz, positions_uv]
 
-    def project(self, positions_xyz, camera_intrinsic_matrix):
+    def project(self, positions_xyz, camera_intrinsic_matrix, index_root_bone_length):
         """
         Projects three-dimensional coordinates onto the image plane.
 
         Args:
             positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
             camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
-
+            index_root_bone_length,  shape (batch_size, 1).
         Returns:
             The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
         """
@@ -261,10 +261,14 @@ class ForwardKinematics(nn.Module):
         # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
         # Reshape to (bs, 3, num_points)
         points_3d_reshaped = positions_xyz.permute(0, 2, 1)
+        # points_3d_reshaped shape is [bs, 3, num_points]
+
+        index_root_bone_length_expanded = index_root_bone_length.unsqueeze(2)
+        points_3d_reshaped = points_3d_reshaped * index_root_bone_length_expanded
+
 
         # Use batch matrix multiplication
         # camera_intrinsic_matrix shape is [bs, 3, 3]
-        # points_3d_reshaped shape is [bs, 3, num_points]
         p = torch.bmm(camera_intrinsic_matrix, points_3d_reshaped)
 
         # The shape of p should now be [bs, 3, num_points]

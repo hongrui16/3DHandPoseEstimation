@@ -11,7 +11,7 @@ class MPJPE(nn.Module):
         # Calculate the normal
         normal = torch.norm(pre_xyz - gt_xyz, dim=2) # Calculate along the third dimension
 
-         # Select valid key points through mask
+        # Select valid key points through mask
         masked_normal = torch.masked_select(normal, keypoint_vis.squeeze(-1).to(dtype=torch.bool))
 
         # If there are no valid keypoints, return 0 to avoid division by zero
