@@ -1,6 +1,11 @@
 # DenoisingDiffusion3DHandPoseEstimation
 This is the implementation code for the paper titled ["Denoising Diffusion for 3D Hand Pose Estimation from Images"](https://arxiv.org/abs/2308.09523).
 
+
+## Install library packages
+```pip install -r requirements.txt```
+
+
 ## Parameter setting
 All parameters are configured in ```config/config.py```. This includes settings such as batch size, the input channel of the network, etc.
 
