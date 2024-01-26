@@ -7,6 +7,8 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 import os
 import glob
+import shutil
+import GPUtil
 
 from config.config import *
 
@@ -19,6 +21,7 @@ from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
 from dataloader.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
+from utils.get_gpu_info import *
 
 class Worker(object):
     def __init__(self):
@@ -52,9 +55,15 @@ class Worker(object):
         self.exp_dir = os.path.join(save_log_dir, dataset_name, f'run_{run_id:03d}')
         os.makedirs(self.exp_dir, exist_ok=True)
 
+        self.txtfile = os.path.join(self.exp_dir, 'log.txt')
+        if os.path.exists(self.txtfile):
+            os.remove(self.txtfile)
+
         self.logger = SummaryWriter(self.exp_dir)
 
         self.best_val_epoch_mpjpe = float('inf')
+
+        shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
 
         
     def trainval(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
@@ -69,6 +78,7 @@ class Worker(object):
         width = 10  # Total width including the string length
         formatted_split = split.rjust(width)
         epoch_loss = []
+        epoch_mpjpe = []
 
         for iter, sample in enumerate(tbar):
             if fast_debug and iter > 2:
@@ -108,19 +118,33 @@ class Worker(object):
                 loss.backward()
                 self.optimizer.step()
 
+            if split == 'training':
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {iter:05d}/{num_iter:05d} loss: {loss.item():.5f}'
+                tbar.set_description(loginfo)
+            else:
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {iter:05d}/{num_iter:05d} loss: {loss.item():.5f} MPJPE: {mpjpe.item():.5f}'
+                tbar.set_description(loginfo)
+
             if iter % 10 == 0:
-                if split == 'training':
-                    tbar.set_description(f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Epoch: {iter:05d}/{num_iter:05d} loss: {loss:.5f}')
-                else:
-                    tbar.set_description(f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Epoch: {iter:05d}/{num_iter:05d} loss: {loss:.5f} MPJPE: {mpjpe:.5f}')
-                    self.logger.add_scalar(f'{formatted_split} epoch MPJPE', mpjpe.item(), global_step=cur_epoch)
+                self.write_loginfo_to_txt(loginfo)
+            if iter % 20 == 0:
+                gpu_info = get_gpu_utilization_as_string()
+                print(gpu_info)
+                self.write_loginfo_to_txt(gpu_info)
+            
 
-            self.logger.add_scalar(f'{formatted_split} epoch loss', loss.item(), global_step=cur_epoch)
 
-            iter_loss = round(loss.item(), 5)
-            epoch_loss.append(iter_loss)
-        if not mpjpe is None:
-            return round(mpjpe.item(), 5)
+            iter_loss_value = round(loss.item(), 5)
+            epoch_loss.append(iter_loss_value)
+            if not split == 'training':
+                iter_mpjpe_value = round(mpjpe.item(), 5)
+                epoch_mpjpe.append(iter_mpjpe_value)
+            
+
+        self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
+        if not split == 'training':
+            self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
+            return np.round(np.mean(epoch_mpjpe), 5)
         else:
             return None
     
@@ -132,6 +156,14 @@ class Worker(object):
         torch.save(state, filename)
         if is_best:   
             torch.save(state, best_model_filepath)
+    
+    def write_loginfo_to_txt(self, loginfo):
+        loss_file = open(self.txtfile, "a+")
+        if loginfo.endswith('\n'):
+            loss_file.write(loginfo)
+        else:
+            loss_file.write(loginfo+'\n')
+        loss_file.close()# 
     
     def forward(self, fast_debug = False):
         for epoch in range(0, max_epoch): 
@@ -154,6 +186,11 @@ class Worker(object):
 
 
 if __name__ == '__main__':
-    fast_debug = True
+    # fast_debug = True
+    fast_debug = False
     worker = Worker()
     worker.forward(fast_debug)
+
+    # gpu_info = get_gpu_utilization_as_string()
+    # print('gpu_info', gpu_info)
+
