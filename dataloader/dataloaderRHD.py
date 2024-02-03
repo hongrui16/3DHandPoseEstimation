@@ -467,7 +467,7 @@ if __name__ == '__main__':
     dataset = RHD_HandKeypointsDataset(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
 
     # Creating the DataLoader
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
     '''
     {'img_name': img_name,
                     'image': image, 'mask': mask, 'depth': depth,
@@ -492,6 +492,9 @@ if __name__ == '__main__':
         index_root_bone_length = batch['keypoint_scale']
         img_name = batch['img_name']
         hand_side = batch['hand_side']
+        keypoint_scale = batch['keypoint_scale']
+        keypoint_xyz21_normed = batch['keypoint_xyz21_normed']
+
         print('img_name:', img_name)
         # print('keypoints_xyz:', keypoints_xyz)
         # print('kp_coord_uv:', keypoints_uv)
@@ -510,4 +513,7 @@ if __name__ == '__main__':
         print('keypoint_xyz21[:, :3]', keypoint_xyz21[:, :3])
         print('keypoint_uv21[:, :3]', keypoint_uv21[:, :3])
         print('keypoint_vis21[:, :3]', keypoint_vis21[:, :3])
+        print('keypoint_scale', keypoint_scale)
+        print('keypoint_xyz21_normed[:, :3]', keypoint_xyz21_normed[:, :3])
+
         break

@@ -199,7 +199,7 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         kp_coord_xyz_root = kp_coord_xyz21[0, :]  # this is the palm coord
         kp_coord_xyz21_rel = kp_coord_xyz21 - kp_coord_xyz_root
         index_root_bone_length = torch.sqrt((kp_coord_xyz21_rel[12, :] - kp_coord_xyz21_rel[11, :]).pow(2).sum())
-        data_dict['keypoint_scale'] = index_root_bone_length
+        data_dict['keypoint_scale'] = index_root_bone_length.unsqueeze(-1)
         data_dict['keypoint_xyz21_normed'] = kp_coord_xyz21_rel / index_root_bone_length ##normalized by length of 12->11
 
         # Calculate local coordinates
@@ -451,7 +451,7 @@ if __name__ == '__main__':
     dataset = RHD_HandKeypointsDatasetTorch(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
 
     # Creating the DataLoader
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
     '''
     {'img_name': img_name,
                     'image': image, 'mask': mask, 'depth': depth,
@@ -476,6 +476,10 @@ if __name__ == '__main__':
         index_root_bone_length = batch['keypoint_scale']
         img_name = batch['img_name']
         hand_side = batch['hand_side']
+
+        keypoint_scale = batch['keypoint_scale']
+        keypoint_xyz21_normed = batch['keypoint_xyz21_normed']
+
         print('img_name:', img_name)
         # print('keypoints_xyz:', keypoints_xyz)
         # print('kp_coord_uv:', keypoints_uv)
@@ -493,6 +497,8 @@ if __name__ == '__main__':
         print('keypoint_xyz21[:, :3]', keypoint_xyz21[:, :3])
         print('keypoint_uv21[:, :3]', keypoint_uv21[:, :3])
         print('keypoint_vis21[:, :3]', keypoint_vis21[:, :3])
+        print('keypoint_scale', keypoint_scale)
+        print('keypoint_xyz21_normed[:, :3]', keypoint_xyz21_normed[:, :3])
         
         
         break

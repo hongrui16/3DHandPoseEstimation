@@ -19,6 +19,7 @@ from config.config import *
 
 from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
 from dataloader.dataloaderRHD import RHD_HandKeypointsDataset
+from dataloader.dataloaderRHD_Torch import RHD_HandKeypointsDatasetTorch
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
@@ -44,8 +45,11 @@ class Worker(object):
         self.metric_mpjpe = MPJPE()
 
         if dataset_name == 'RHD':
-            train_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='training')
-            val_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='evaluation')
+            # train_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='training')
+            # val_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='evaluation')
+
+            train_set = RHD_HandKeypointsDatasetTorch(root_dir=dataset_root_dir, set_type='training')
+            val_set = RHD_HandKeypointsDatasetTorch(root_dir=dataset_root_dir, set_type='evaluation')
         self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
         self.val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
 
@@ -95,7 +99,8 @@ class Worker(object):
 
             bs, num_points, c = keypoint_xyz21_normed_gt.shape
             pose_x0 = keypoint_xyz21_normed_gt.view(batch_size,-1, num_points*c)
-
+            # print('keypoint_xyz21_normed_gt.shape', keypoint_xyz21_normed_gt.shape)
+            # print('index_root_bone_length.shape', index_root_bone_length.shape)
             kp_coord_xyz21_rel_gt = keypoint_xyz21_normed_gt *  index_root_bone_length.unsqueeze(2) # Relative xyz coordinates
 
             self.optimizer.zero_grad()
@@ -125,9 +130,9 @@ class Worker(object):
                 loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {iter:05d}/{num_iter:05d} loss: {loss.item():.5f} MPJPE: {mpjpe.item():.5f}'
                 tbar.set_description(loginfo)
 
-            if iter % 10 == 0:
-                self.write_loginfo_to_txt(loginfo)
             if iter % 20 == 0:
+                self.write_loginfo_to_txt(loginfo)
+            if iter % 50 == 0:
                 gpu_info = get_gpu_utilization_as_string()
                 print(gpu_info)
                 self.write_loginfo_to_txt(gpu_info)

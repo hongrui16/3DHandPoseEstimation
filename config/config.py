@@ -10,7 +10,7 @@ num_timesteps = 200
 num_sampling_timesteps = 100
 keypoint_feat_Ch = 1
 keypoint_num = 21
-batch_size = 4
+batch_size = 360
 bone_length_num = 20
 other_joint_angles_num = 23
 
