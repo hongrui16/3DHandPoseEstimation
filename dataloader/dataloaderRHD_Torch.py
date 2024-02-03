@@ -7,18 +7,18 @@ import pickle
 import os
 import numpy as np
 import cv2
-# import tensorflow as tf
+
 import torch.nn.functional as F
 
 import sys
-# sys.path.append('../')  
+sys.path.append('../')  
 
 from config.config import *
 from utils import transformations as tr
 
 from utils.general_torch import crop_image_from_xy_torch
 # from utils.canonical_trafo import canonical_trafo, flip_right_hand
-from utils.relative_trafo_torch import bone_rel_trafo_torch
+from utils.relative_trafo_torch import bone_rel_trafo
 
 
 class RHD_HandKeypointsDatasetTorch(Dataset):
@@ -72,7 +72,9 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         # Load image, mask, and depth
         
         img_name = f'{idx:05d}.png'
-        image = cv2.imread(os.path.join(self.root_dir, self.set_type, 'color', f'{idx:05d}.png'))
+        img_filepath = os.path.join(self.root_dir, self.set_type, 'color', f'{idx:05d}.png')
+        # print('img_filepath', img_filepath)
+        image = cv2.imread(img_filepath)
         mask = cv2.imread(os.path.join(self.root_dir, self.set_type, 'mask', f'{idx:05d}.png'),  0)
         depth = cv2.imread(os.path.join(self.root_dir, self.set_type, 'depth', f'{idx:05d}.png'))
         
@@ -163,14 +165,27 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         hand_map_r = torch.where(cond_r, one_map, zero_map)
         num_px_left_hand = hand_map_l.sum()
         num_px_right_hand = hand_map_r.sum()
+        # print('num_px_left_hand.shape', num_px_left_hand.shape)
+        # print('num_px_right_hand.shape', num_px_right_hand.shape)
 
         # Produce the 21 subset using the segmentation masks
         # We only deal with the more prominent hand for each frame and discard the second set of keypoints
         kp_coord_xyz_left = keypoint_xyz[:21, :]
         kp_coord_xyz_right = keypoint_xyz[-21:, :]
-
+        
         cond_left = (num_px_left_hand > num_px_right_hand)
-        kp_coord_xyz21 = torch.where(cond_left.unsqueeze(1), kp_coord_xyz_left, kp_coord_xyz_right)
+        
+
+        # Create a tensor of the same shape as kp_coord_xyz_left, filled with cond_left
+        cond_left = cond_left.repeat(kp_coord_xyz_left.shape[0], kp_coord_xyz_left.shape[1])
+        # print('cond_left.shape', cond_left.shape)
+        # print('kp_coord_xyz_left.shape', kp_coord_xyz_left.shape)
+        # print('kp_coord_xyz_right.shape', kp_coord_xyz_right.shape)
+        # Now use this expanded condition in torch.where
+        kp_coord_xyz21 = torch.where(cond_left, kp_coord_xyz_left, kp_coord_xyz_right)
+        # print('kp_coord_xyz21.shape', kp_coord_xyz21.shape)
+
+
 
         hand_side = torch.where(num_px_left_hand > num_px_right_hand, torch.tensor(0), torch.tensor(1))
         data_dict['hand_side'] = F.one_hot(hand_side, num_classes=2).float()
@@ -189,19 +204,27 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
 
         # Calculate local coordinates
         # Assuming bone_rel_trafo is a defined function compatible with PyTorch
-        kp_coord_xyz21_local = bone_rel_trafo_torch(data_dict['keypoint_xyz21_normed'])
+        kp_coord_xyz21_local = bone_rel_trafo(data_dict['keypoint_xyz21_normed'])
         data_dict['keypoint_xyz21_local'] = kp_coord_xyz21_local.squeeze() # 
 
         # Handling visibility and UV coordinates
         keypoint_vis_left = keypoint_vis[:21]
         keypoint_vis_right = keypoint_vis[-21:]
-        keypoint_vis21 = torch.where(cond_left.unsqueeze(1), keypoint_vis_left, keypoint_vis_right)
+        # print('keypoint_vis_left.shape', keypoint_vis_left.shape)
+        # print('keypoint_vis_right.shape', keypoint_vis_right.shape)
+        # print('cond_left[:, 0].shape', cond_left[:, 0].shape)
+        
+        keypoint_vis21 = torch.where(cond_left[:, 0:1], keypoint_vis_left, keypoint_vis_right)
         data_dict['keypoint_vis21'] = keypoint_vis21
+        # print('keypoint_vis21.shape', keypoint_vis21.shape)
 
         keypoint_uv_left = keypoint_uv[:21, :]
         keypoint_uv_right = keypoint_uv[-21:, :]
-        keypoint_uv21 = torch.where(cond_left.unsqueeze(1).repeat(1, 2), keypoint_uv_left, keypoint_uv_right)
-
+        keypoint_uv21 = torch.where(cond_left[:,:2], keypoint_uv_left, keypoint_uv_right)
+        # print('keypoint_uv21.shape', keypoint_uv21.shape)
+        # print('keypoint_uv_left.shape', keypoint_uv_left.shape)
+        # print('keypoint_uv_right.shape', keypoint_uv_right.shape)
+        # print('cond_left[:,:2].shape', cond_left[:,:2].shape)
         #        #If it is the left hand, perform a mirror transformation on the U coordinate
         #Assuming hand_ Side 0 represents left hand, 1 represents right hand
         # Mirror transformation on the U coordinate for the left hand
@@ -364,6 +387,8 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
 
     @staticmethod
     def create_multiple_gaussian_map(coords_uv, output_size, sigma, valid_vec=None):
+        # print('valid_vec.shape', valid_vec.shape)
+
         sigma = torch.tensor(sigma, dtype=torch.float32)
         assert len(output_size) == 2
         coords_uv = coords_uv.to(torch.int32)
@@ -378,6 +403,8 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         cond_1_in = (coords_uv[:, 0] < output_size[0]-1) & (coords_uv[:, 0] > 0)
         cond_2_in = (coords_uv[:, 1] < output_size[1]-1) & (coords_uv[:, 1] > 0)
         cond_in = cond_1_in & cond_2_in
+        # print('cond_val.shape', cond_val.shape)
+        # print('cond_in.shape', cond_in.shape)
         cond = cond_val & cond_in
 
         coords_uv = coords_uv.to(torch.float32)
@@ -400,6 +427,10 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
 
         dist = torch.square(X_b) + torch.square(Y_b)
 
+        # print('dist.shape', dist.shape)
+        # print('sigma.shape', sigma.shape)
+        # print('cond.shape', cond.shape)
+
         scoremap = torch.exp(-dist / torch.square(sigma)) * cond.to(torch.float32)
 
         return scoremap
@@ -410,15 +441,17 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
 
 if __name__ == '__main__':
 
+    dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+
     transforms = transforms.Compose([
             tr.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             tr.ToTensor()])
 
     # Creating the dataset
-    dataset = RHD_HandKeypointsDatasetTorch(root_dir='dataset/RHD', set_type='evaluation', transform=transforms, debug=False)
+    dataset = RHD_HandKeypointsDatasetTorch(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
 
     # Creating the DataLoader
-    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
     '''
     {'img_name': img_name,
                     'image': image, 'mask': mask, 'depth': depth,
@@ -434,7 +467,11 @@ if __name__ == '__main__':
         keypoints_uv = batch['keypoint_uv']
         keypoints_uv_visible = batch['keypoint_vis']
         keypoints_xyz = batch['keypoint_xyz']
+
+        keypoint_xyz21 = batch['keypoint_xyz21']        
         keypoint_uv21 = batch['keypoint_uv21']
+        keypoint_vis21 = batch['keypoint_vis21']
+
         camera_matrices = batch['camera_intrinsic_matrix']
         index_root_bone_length = batch['keypoint_scale']
         img_name = batch['img_name']
@@ -451,4 +488,11 @@ if __name__ == '__main__':
         print('camera_matrices.shape:', camera_matrices.shape) # torch.Size([BS, 3, 3])
         print('camera_matrices', camera_matrices)
         print('index_root_bone_length.shape:', index_root_bone_length.shape) # torch.Size([BS, 1])
+        print('')
+        print('keypoints_xyz[:, :3]', keypoints_xyz[:, :3])
+        print('keypoint_xyz21[:, :3]', keypoint_xyz21[:, :3])
+        print('keypoint_uv21[:, :3]', keypoint_uv21[:, :3])
+        print('keypoint_vis21[:, :3]', keypoint_vis21[:, :3])
+        
+        
         break

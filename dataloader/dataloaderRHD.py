@@ -15,7 +15,7 @@ tf.compat.v1.enable_eager_execution()
 
 
 import sys
-# sys.path.append('../')  
+sys.path.append('../')  
 
 from config.config import *
 from utils import transformations as tr
@@ -168,6 +168,8 @@ class RHD_HandKeypointsDataset(Dataset):
         hand_map_r = tf.where(cond_r, one_map, zero_map)
         num_px_left_hand = tf.reduce_sum(hand_map_l)
         num_px_right_hand = tf.reduce_sum(hand_map_r)
+        # print('num_px_left_hand.shape', num_px_left_hand.shape)
+        # print('num_px_right_hand.shape', num_px_right_hand.shape)
 
         # PRODUCE the 21 subset using the segmentation masks
         # We only deal with the more prominent hand for each frame and discard the second set of keypoints
@@ -176,6 +178,10 @@ class RHD_HandKeypointsDataset(Dataset):
 
         cond_left = tf.logical_and(tf.cast(tf.ones_like(kp_coord_xyz_left), tf.bool), tf.greater(num_px_left_hand, num_px_right_hand))
         kp_coord_xyz21 = tf.where(cond_left, kp_coord_xyz_left, kp_coord_xyz_right)
+
+        # print('cond_left.shape', cond_left.shape)
+        # print('kp_coord_xyz_left.shape', kp_coord_xyz_left.shape)
+        # print('kp_coord_xyz_right.shape', kp_coord_xyz_right.shape)
 
         hand_side = tf.where(tf.greater(num_px_left_hand, num_px_right_hand),
                              tf.constant(0, dtype=tf.int32),
@@ -218,14 +224,21 @@ class RHD_HandKeypointsDataset(Dataset):
         # Set of 21 for visibility
         keypoint_vis_left = keypoint_vis[:21]
         keypoint_vis_right = keypoint_vis[-21:]
+        # print('keypoint_vis_left.shape', keypoint_vis_left.shape)
+        # print('keypoint_vis_right.shape', keypoint_vis_right.shape)
+        # print('cond_left[:, 0].shape', cond_left[:, 0].shape)
         keypoint_vis21 = tf.where(cond_left[:, 0], keypoint_vis_left, keypoint_vis_right)
         data_dict['keypoint_vis21'] = keypoint_vis21
+        # print('keypoint_vis21.shape', keypoint_vis21.shape)
 
         # Set of 21 for UV coordinates
         keypoint_uv_left = keypoint_uv[:21, :]
         keypoint_uv_right = keypoint_uv[-21:, :]
         keypoint_uv21 = tf.where(cond_left[:, :2], keypoint_uv_left, keypoint_uv_right)
-
+        # print('keypoint_uv21.shape', keypoint_uv21.shape)
+        # print('keypoint_uv_left.shape', keypoint_uv_left.shape)
+        # print('keypoint_uv_right.shape', keypoint_uv_right.shape)
+        # print('cond_left[:,:2].shape', cond_left[:,:2].shape)
 
         ### new added
         #If it is the left hand, perform a mirror transformation on the U coordinate
@@ -389,6 +402,8 @@ class RHD_HandKeypointsDataset(Dataset):
     def create_multiple_gaussian_map(coords_uv, output_size, sigma, valid_vec=None):
         """ Creates a map of size (output_shape[0], output_shape[1]) at (center[0], center[1])
             with variance sigma for multiple coordinates."""
+        # print('valid_vec.shape', valid_vec.shape)
+
         with tf.name_scope('create_multiple_gaussian_map'):
             sigma = tf.cast(sigma, tf.float32)
             assert len(output_size) == 2
@@ -405,6 +420,9 @@ class RHD_HandKeypointsDataset(Dataset):
             cond_1_in = tf.logical_and(tf.less(coords_uv[:, 0], output_size[0]-1), tf.greater(coords_uv[:, 0], 0))
             cond_2_in = tf.logical_and(tf.less(coords_uv[:, 1], output_size[1]-1), tf.greater(coords_uv[:, 1], 0))
             cond_in = tf.logical_and(cond_1_in, cond_2_in)
+            # print('cond_val.shape', cond_val.shape)
+            # print('cond_in.shape', cond_in.shape)
+
             cond = tf.logical_and(cond_val, cond_in)
 
             coords_uv = tf.cast(coords_uv, tf.float32)
@@ -430,22 +448,26 @@ class RHD_HandKeypointsDataset(Dataset):
 
             dist = tf.square(X_b) + tf.square(Y_b)
 
+            # print('dist.shape', dist.shape)
+            # print('sigma.shape', sigma.shape)
+            # print('cond.shape', cond.shape)
             scoremap = tf.exp(-dist / tf.square(sigma)) * tf.cast(cond, tf.float32)
 
             return scoremap
 
 
 if __name__ == '__main__':
+    dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
 
     transforms = transforms.Compose([
             tr.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             tr.ToTensor()])
 
     # Creating the dataset
-    dataset = RHD_HandKeypointsDataset(root_dir='dataset/RHD', set_type='evaluation', transform=transforms, debug=False)
+    dataset = RHD_HandKeypointsDataset(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
 
     # Creating the DataLoader
-    dataloader = DataLoader(dataset, batch_size=2, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
     '''
     {'img_name': img_name,
                     'image': image, 'mask': mask, 'depth': depth,
@@ -461,7 +483,11 @@ if __name__ == '__main__':
         keypoints_uv = batch['keypoint_uv']
         keypoints_uv_visible = batch['keypoint_vis']
         keypoints_xyz = batch['keypoint_xyz']
+
+        keypoint_xyz21 = batch['keypoint_xyz21']        
         keypoint_uv21 = batch['keypoint_uv21']
+        keypoint_vis21 = batch['keypoint_vis21']
+
         camera_matrices = batch['camera_intrinsic_matrix']
         index_root_bone_length = batch['keypoint_scale']
         img_name = batch['img_name']
@@ -478,4 +504,10 @@ if __name__ == '__main__':
         print('camera_matrices.shape:', camera_matrices.shape) # torch.Size([BS, 3, 3])
         print('camera_matrices', camera_matrices)
         print('index_root_bone_length.shape:', index_root_bone_length.shape) # torch.Size([BS, 1])
+        print('keypoints_xyz', keypoints_xyz)
+        print('')
+        print('keypoints_xyz[:, :3]', keypoints_xyz[:, :3])
+        print('keypoint_xyz21[:, :3]', keypoint_xyz21[:, :3])
+        print('keypoint_uv21[:, :3]', keypoint_uv21[:, :3])
+        print('keypoint_vis21[:, :3]', keypoint_vis21[:, :3])
         break
