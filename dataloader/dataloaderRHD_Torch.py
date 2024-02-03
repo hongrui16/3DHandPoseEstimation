@@ -7,8 +7,8 @@ import pickle
 import os
 import numpy as np
 import cv2
-
 import torch.nn.functional as F
+import time
 
 import sys
 sys.path.append('../')  
@@ -53,6 +53,8 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         self.crop_scale_noise = crop_scale_noise
         self.crop_offset_noise = crop_offset_noise
         self.crop_offset_noise_sigma = 10.0  # translates the crop after size calculation (this can move keypoints outside)
+
+        self.calculate_scoremap = calculate_scoremap
         self.scoremap_dropout = scoremap_dropout
         self.scoremap_dropout_prob = 0.8
 
@@ -70,7 +72,7 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
 
     def __getitem__(self, idx):
         # Load image, mask, and depth
-        
+        start_time = time.time()
         img_name = f'{idx:05d}.png'
         img_filepath = os.path.join(self.root_dir, self.set_type, 'color', f'{idx:05d}.png')
         # print('img_filepath', img_filepath)
@@ -309,25 +311,25 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
             data_dict['camera_intrinsic_matrix'] = torch.matmul(trans_matrix, torch.matmul(scale_matrix, camera_intrinsic_matrix))
 
 
-        """ DEPENDENT DATA ITEMS: Scoremap from the SUBSET of 21 keypoints"""
-        # create scoremaps from the subset of 2D annoataion
-        keypoint_hw21 = torch.stack([keypoint_uv21[:, 1], keypoint_uv21[:, 0]], dim=-1)
-        scoremap_size = self.image_size
-        
-        if self.hand_crop:
-            scoremap_size = (self.crop_size, self.crop_size)
+        ### DEPENDENT DATA ITEMS: Scoremap from the SUBSET of 21 keypoints
+        if self.calculate_scoremap:
+            keypoint_hw21 = torch.stack([keypoint_uv21[:, 1], keypoint_uv21[:, 0]], dim=-1) # create scoremaps from the subset of 2D annoataion
+            scoremap_size = self.image_size
 
-        scoremap = self.create_multiple_gaussian_map(keypoint_hw21,
-                                                     scoremap_size,
-                                                     self.sigma,
-                                                     valid_vec=keypoint_vis21)
-        
+            if self.hand_crop:
+                scoremap_size = (self.crop_size, self.crop_size)
 
-        if self.scoremap_dropout:
-            # Apply dropout to scoremap
-            scoremap = F.dropout(scoremap, p=self.scoremap_dropout_prob, training=self.training)
-            scoremap *= self.scoremap_dropout_prob
-        data_dict['scoremap'] = scoremap
+            scoremap = self.create_multiple_gaussian_map(keypoint_hw21,
+                                                        scoremap_size,
+                                                        self.sigma,
+                                                        valid_vec=keypoint_vis21)
+
+
+            if self.scoremap_dropout:
+                # Apply dropout to scoremap
+                scoremap = F.dropout(scoremap, p=self.scoremap_dropout_prob, training=self.training)
+                scoremap *= self.scoremap_dropout_prob
+            data_dict['scoremap'] = scoremap
 
         if self.scale_to_size:
             # Resize image
@@ -380,7 +382,7 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         
         data_dict['img_name'] = img_name
         names, tensors = zip(*data_dict.items())
-
+        # print(f'cost {time.time() - start_time:.2f}') #0.02
         return dict(zip(names, tensors))
 
 

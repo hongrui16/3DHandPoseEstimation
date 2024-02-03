@@ -26,3 +26,4 @@ crop_center_noise=False
 crop_scale_noise=False
 crop_offset_noise=False
 scoremap_dropout=False
+calculate_scoremap=False

@@ -382,17 +382,21 @@ class Unet1D(nn.Module):
             x = torch.cat((x_self_cond, x), dim = 1)
 
         
-        # print(f'x.size(): {x.size()}') # torch.Size([4, 32, 128])
+        # print(f'x.size(): {x.size()}') # torch.Size([BS, 32, 128])
         x = self.init_conv(x)
-        # print(f'x.size(): {x.size()}') # torch.Size([4, 64, 128])
+        # print(f'x.size(): {x.size()}') # torch.Size([BS, 64, 128])
 
         r = x.clone()
 
-        # print(f'time.size(): {time.size()}') # torch.Size([4])
+        # print(f'time.size(): {time.size()}') # torch.Size([BS])
         t = self.time_mlp(time)
-        # print(f't.size(): {t.size()}') # torch.Size([4, 256])
+        # print(f't.size(): {t.size()}') # torch.Size([BS, 256])
+        # print(f'time.size(): {time.size()}') # torch.Size([BS])
+        # print(f'condition.size(): {condition.size()}') # torch.Size([BS, 256])
         if not condition is None:
             condition_feat = self.condition_feat_mlp(condition)
+            # print(f'condition_feat.size(): {condition_feat.size()}') # torch.Size([BS, 256])
+
             t += condition_feat
 
         h = []
@@ -659,7 +663,8 @@ class GaussianDiffusion1D(nn.Module):
 
         x_start = None
 
-        for t in tqdm(reversed(range(0, self.num_timesteps)), desc = 'sampling loop time step', total = self.num_timesteps):
+        # for t in tqdm(reversed(range(0, self.num_timesteps)), desc = 'sampling loop time step', total = self.num_timesteps):
+        for t in reversed(range(0, self.num_timesteps)):
             self_cond = x_start if self.self_condition else None
             img, x_start = self.p_sample(img, t, self_cond, condition = condition)
 
@@ -678,7 +683,8 @@ class GaussianDiffusion1D(nn.Module):
 
         x_start = None
 
-        for time, time_next in tqdm(time_pairs, desc = 'sampling loop time step'):
+        # for time, time_next in tqdm(time_pairs, desc = 'sampling loop time step'):
+        for time, time_next in time_pairs:
             time_cond = torch.full((batch,), time, device=device, dtype=torch.long)
             self_cond = x_start if self.self_condition else None
             pred_noise, x_start, *_ = self.model_predictions(img, time_cond, self_cond, clip_x_start = clip_denoised, condition = condition)

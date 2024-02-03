@@ -9,6 +9,7 @@ import os
 import glob
 import shutil
 import GPUtil
+import time
 
 from config.config import *
 
@@ -84,9 +85,28 @@ class Worker(object):
         epoch_loss = []
         epoch_mpjpe = []
 
-        for iter, sample in enumerate(tbar):
+        # data_iter = iter(tbar)  # 创建 DataLoader 的迭代器
+        # for idx in tqdm(range(len(tbar))):
+        #     start_time = time.time()  # 开始时间
+
+        #     # 使用 next 从 DataLoader 获取下一个 batch
+        #     try:
+        #         sample = next(data_iter)
+        #     except StopIteration:
+        #         break  # 如果 DataLoader 结束，则退出循环
+
+        #     end_time = time.time()  # 结束时间
+        #     elapsed_time = end_time - start_time  # 计算所用时间
+        #     print(f"Iteration {idx} took {elapsed_time} seconds to retrieve one batch.") # 6 ~ 10 s
+
+
+
+        for idx, sample in enumerate(tbar): # 6 ~ 10 s
             if fast_debug and iter > 2:
                 break
+            # if idx < 112:
+            #     continue
+            # print('idx', idx)
             image = sample['image'].to(self.device)
 
             keypoint_xyz21_normed_gt = sample['keypoint_xyz21_normed'].to(self.device) ## normalized xyz coordinates
@@ -98,8 +118,9 @@ class Worker(object):
             camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
 
             bs, num_points, c = keypoint_xyz21_normed_gt.shape
-            pose_x0 = keypoint_xyz21_normed_gt.view(batch_size,-1, num_points*c)
             # print('keypoint_xyz21_normed_gt.shape', keypoint_xyz21_normed_gt.shape)
+            pose_x0 = keypoint_xyz21_normed_gt.view(bs,-1, num_points*c)
+            # print('pose_x0.shape', pose_x0.shape)
             # print('index_root_bone_length.shape', index_root_bone_length.shape)
             kp_coord_xyz21_rel_gt = keypoint_xyz21_normed_gt *  index_root_bone_length.unsqueeze(2) # Relative xyz coordinates
 
@@ -124,18 +145,18 @@ class Worker(object):
                 self.optimizer.step()
 
             if split == 'training':
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {iter:05d}/{num_iter:05d} loss: {loss.item():.5f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d} loss: {loss.item():.5f}'
                 tbar.set_description(loginfo)
             else:
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {iter:05d}/{num_iter:05d} loss: {loss.item():.5f} MPJPE: {mpjpe.item():.5f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d} loss: {loss.item():.5f} MPJPE: {mpjpe.item():.5f}'
                 tbar.set_description(loginfo)
 
-            if iter % 20 == 0:
+            if idx % 20 == 0:
                 self.write_loginfo_to_txt(loginfo)
-            if iter % 50 == 0:
-                gpu_info = get_gpu_utilization_as_string()
-                print(gpu_info)
-                self.write_loginfo_to_txt(gpu_info)
+            # if iter % 50 == 0:
+            #     gpu_info = get_gpu_utilization_as_string()
+            #     print(gpu_info)
+            #     self.write_loginfo_to_txt(gpu_info)
             
 
 
@@ -144,14 +165,19 @@ class Worker(object):
             if not split == 'training':
                 iter_mpjpe_value = round(mpjpe.item(), 5)
                 epoch_mpjpe.append(iter_mpjpe_value)
-            
-
-        self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
+                    
         if not split == 'training':
             self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
-            return np.round(np.mean(epoch_mpjpe), 5)
+            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 5)}, MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
+            epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
         else:
-            return None
+            self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
+            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 5)}'
+            epoch_mpjpe = None
+        print(epoch_info)
+        self.write_loginfo_to_txt(epoch_info)
+        self.write_loginfo_to_txt('')
+        return epoch_mpjpe
     
     def save_checkpoint(self, state, is_best, model_name='', ouput_weight_dir = ''):
         """Saves checkpoint to disk"""
@@ -172,6 +198,7 @@ class Worker(object):
     
     def forward(self, fast_debug = False):
         for epoch in range(0, max_epoch): 
+            # _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
             _ = self.trainval(epoch, max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
 
             mpjpe = self.trainval(epoch, max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
