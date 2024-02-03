@@ -18,7 +18,7 @@ import sys
 # sys.path.append('../')  
 
 from config.config import *
-from utils import transforms as tr
+from utils import transformations as tr
 from utils.general import crop_image_from_xy
 from utils.canonical_trafo import canonical_trafo, flip_right_hand
 from utils.relative_trafo import bone_rel_trafo
@@ -234,7 +234,7 @@ class RHD_HandKeypointsDataset(Dataset):
         # update the keypoint_uv21 in the data_dict
         data_dict['keypoint_uv21'] = tf.concat([mirrored_u[:, tf.newaxis], keypoint_uv21[:, 1:2]], axis=1)
 
-
+        
 
         """ DEPENDENT DATA ITEMS: HAND CROP """
         if self.hand_crop:
@@ -433,10 +433,6 @@ class RHD_HandKeypointsDataset(Dataset):
             scoremap = tf.exp(-dist / tf.square(sigma)) * tf.cast(cond, tf.float32)
 
             return scoremap
-
-
-
-
 
 
 if __name__ == '__main__':
