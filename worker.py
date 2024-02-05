@@ -234,8 +234,8 @@ class Worker(object):
     
     def forward(self, fast_debug = False):
         for epoch in range(self.start_epoch, max_epoch): 
-            _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
-            # _ = self.trainval(epoch, max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
+            # _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
+            _ = self.trainval(epoch, max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
 
             mpjpe = self.trainval(epoch, max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
             checkpoint = {

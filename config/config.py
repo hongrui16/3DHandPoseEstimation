@@ -10,8 +10,8 @@ finetune = False
 
 
 condition_feat_dim = 256
-num_timesteps = 200
-num_sampling_timesteps = 100
+num_timesteps = 400
+num_sampling_timesteps = 200
 keypoint_feat_Ch = 1
 keypoint_num = 21
 batch_size = 360
