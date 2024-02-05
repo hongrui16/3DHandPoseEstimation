@@ -97,7 +97,20 @@ class LossCalculation(nn.Module):
         else:
             loss_contrast = 0
         
-        loss = loss_xyz + loss_uv + loss_contrast
-        return loss
+        # loss = loss_xyz + loss_uv + loss_contrast
+        return loss_xyz, loss_uv, loss_contrast
 
 
+if __name__ == '__main__':
+    # Use L2Loss class for testing
+    pre_xyz = torch.ones(10, 21, 3) # pre_xyz with all elements being 1
+    gt_xyz = torch.zeros(10, 21, 3) # gt_xyz with all elements 0
+    keypoint_vis = torch.ones(10, 21, 1) # Assume all keypoints are visible
+    keypoint_vis = torch.zeros(10, 21, 1) # Assume all keypoints are invisible
+
+    # Initialize L2Loss instance
+    l2_loss = L2Loss()
+
+    # Calculate loss
+    loss = l2_loss(pre_xyz, gt_xyz, keypoint_vis)
+    print(loss)

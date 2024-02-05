@@ -4,6 +4,10 @@ dataset_name = 'RHD'
 
 max_epoch = 100
 
+# resume_weight_path = 'logs/RHD/run_000/DF_model_best.pth.tar'
+resume_weight_path = None
+finetune = False
+
 
 condition_feat_dim = 256
 num_timesteps = 200

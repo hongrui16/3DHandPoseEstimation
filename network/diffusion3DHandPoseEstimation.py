@@ -40,12 +40,12 @@ class Diffusion3DHandPoseEstimation(torch.nn.Module):
         # joint_pose = joint_pose.reshape(batch_size, -1, 3)
         return coarse_joint_coord
     
-    def forward(self, img, camera_intrinsic_matrix, pose_x0, index_root_bone_length):
+    def forward(self, img, camera_intrinsic_matrix, pose_x0, index_root_bone_length, kp_coord_xyz_root):
         resnet_features = self.resent_extracted_feature(img)
         coarse_joint_coord = self.joint_coord_by_diffusion(resnet_features)
         root_angles, other_angles = self.bone_angle_pred_model(coarse_joint_coord)
         bone_lengths = self.bone_length_pred_model(coarse_joint_coord)
-        refined_joint_coord = self.forward_kinematics_module(root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length)
+        refined_joint_coord = self.forward_kinematics_module(root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root)
 
         diffusion_loss = self.compute_diffusion_loss(pose_x0, resnet_features)
         # refined_joint_coord ## [positions_xyz, positions_uv]

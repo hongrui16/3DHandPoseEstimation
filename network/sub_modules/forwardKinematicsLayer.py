@@ -4,6 +4,9 @@ import torch.nn.functional as F
 from collections import deque
 import numpy as np
 
+import sys
+sys.path.append('../..')  
+
 from config.config import *
 
     
@@ -76,7 +79,7 @@ class ForwardKinematics(nn.Module):
         super(ForwardKinematics, self).__init__()
         self.device = device
     
-    def forward(self, root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length):
+    def forward(self, root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root):
         '''
         right hand coordinate system
         X-axis: Points in the direction of your thumb, horizontally to the right.
@@ -239,8 +242,32 @@ class ForwardKinematics(nn.Module):
             # print(f'positions_xyz.shape', positions_xyz.shape) # torch.Size([bs, num_joint, 3])
 
         # print(f'positions_xyz.shape', positions_xyz.shape) # torch.Size([bs, 21, 3])
-        positions_uv = self.project(positions_xyz, self.camera_intrinsic_matrix, index_root_bone_length)
-        return [positions_xyz, positions_uv]
+        kp_coord_xyz21_absolute = self.convert_rel_normalized_to_absolute(positions_xyz, index_root_bone_length, kp_coord_xyz_root)
+        kp_coord_uv21 = self.project_xyz_to_uv(kp_coord_xyz21_absolute, self.camera_intrinsic_matrix)
+        return [kp_coord_xyz21_absolute, kp_coord_uv21]
+
+    def convert_rel_normalized_to_absolute(self, kp_coord_xyz21_rel_normed, index_root_bone_length, kp_coord_xyz_root):
+        """
+        Args:
+            kp_coord_xyz21_rel_normed: Three-dimensional coordinates, shape (batch_size, num_points, 3).
+            index_root_bone_length,  shape (batch_size, 1).
+            kp_coord_xyz_root,  shape (batch_size, 3).
+        Returns:
+            The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
+        """
+        # Zoom positions_xyz
+        index_root_bone_length_expanded = index_root_bone_length.unsqueeze(-1) # [batch_size, 1, 1]
+        positions_xyz_scaled = kp_coord_xyz21_rel_normed * index_root_bone_length_expanded # [batch_size, num_points, 3]
+
+        # Adjust the shape of kp_coord_xyz_root to facilitate addition operations
+        kp_coord_xyz_root_expanded = kp_coord_xyz_root.unsqueeze(1) # [batch_size, 1, 3]
+
+        # Add scaled positions_xyz_scaled to kp_coord_xyz_root
+        positions_xyz_absloute = positions_xyz_scaled + kp_coord_xyz_root_expanded # [batch_size, num_points, 3]
+
+        # If necessary, dimension exchange can be performed here
+        # positions_xyz_final = positions_xyz_abslute.permute(0, 2, 1) # [batch_size, 3, num_points]
+        return positions_xyz_absloute
 
     def project(self, positions_xyz, camera_intrinsic_matrix, index_root_bone_length):
         """
@@ -250,11 +277,14 @@ class ForwardKinematics(nn.Module):
             positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
             camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
             index_root_bone_length,  shape (batch_size, 1).
+            kp_coord_xyz_root,  shape (batch_size, 3).
         Returns:
             The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
         """
         # print(f'positions_xyz.shape: {positions_xyz.shape}') #torch.Size([2, 21, 3]
         # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
+        # print('positions_xyz[0]', positions_xyz[0])
+        
 
         bs, num_points, _ = positions_xyz.shape
 
@@ -286,8 +316,80 @@ class ForwardKinematics(nn.Module):
 
         # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
         # uv = uv.t().view(bs, num_points, 2)
+        # print('uv[0]', uv[0])
+
         return uv
 
+    def project_xyz_to_uv(self, positions_xyz, camera_intrinsic_matrix):
+        """
+        Projects three-dimensional coordinates onto the image plane.
+
+        Args:
+            positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
+            camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
+        Returns:
+            The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
+        """
+        # print(f'positions_xyz.shape: {positions_xyz.shape}') #torch.Size([2, 21, 3]
+        # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
+        # print('positions_xyz[0]', positions_xyz[0])
+        
+
+        # bs, num_points, _ = positions_xyz.shape
+
+        # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
+        # Reshape to (bs, 3, num_points)
+        points_3d_reshaped = positions_xyz.permute(0, 2, 1)
+        # points_3d_reshaped shape is [bs, 3, num_points]
+
+
+        # Use batch matrix multiplication
+        # camera_intrinsic_matrix shape is [bs, 3, 3]
+        p = torch.bmm(camera_intrinsic_matrix, points_3d_reshaped)
+
+        # The shape of p should now be [bs, 3, num_points]
+
+        # Check if the last row of p has any zero values and replace with a small non-zero value to avoid dividing by zero
+        p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[ :, -1, :])
+        
+        # print(f'p.shape: {p.shape}') # should be [bs, num_points, 2]
+
+        #Normalize to get final 2D coordinates
+        #The shape becomes [bs, num_points, 2]
+        uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
+
+        # print(f'uv.shape: {uv.shape}') # should be [bs, num_points, 2]
+
+        # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
+        # uv = uv.t().view(bs, num_points, 2)
+        # print('uv[0]', uv[0])
+
+        return uv
+    
+    # def project(self, positions_xyz, camera_intrinsic_matrix, index_root_bone_length):
+    #     bs, num_points, _ = positions_xyz.shape
+
+    #     # 转换为齐次坐标，最后一维添加 1
+    #     ones = torch.ones(bs, num_points, 1, device=positions_xyz.device)
+    #     positions_xyz_homogeneous = torch.cat((positions_xyz, ones), dim=2)
+
+    #     # 调整形状以与相机内参矩阵匹配
+    #     points_3d_homogeneous = positions_xyz_homogeneous.permute(0, 2, 1)
+
+    #     # 缩放点坐标
+    #     index_root_bone_length_expanded = index_root_bone_length.unsqueeze(2)
+    #     points_3d_homogeneous = points_3d_homogeneous * index_root_bone_length_expanded
+
+    #     # 使用批矩阵乘法
+    #     p = torch.bmm(camera_intrinsic_matrix, points_3d_homogeneous)
+
+    #     # 避免除以 0 的情况
+    #     p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[:, -1, :])
+
+    #     # 正规化以得到最终的 2D 坐标
+    #     uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
+
+    #     return uv
 
 
 
@@ -298,31 +400,94 @@ class ForwardKinematics(nn.Module):
 
 
 if __name__  == '__main__':
+    # sys.path.append('../..')  
     # Define your root_angles, other_angles, and bone_lengths
     bs = 1
     root_angles = torch.rand((1, 3))
     other_angles = torch.rand(1, 23)  # Replace with actual values
     bone_lengths = torch.rand(1, 20)  # Replace with actual values
 
-    print('root_angles', root_angles)
+    # print('root_angles', root_angles)
 
-    print(f'other_angles[0,0:6]: {other_angles[0,0:6]}')
-    print(f'bone_lengths[0,0:3]: {bone_lengths[0,0:3]}')
+    # print(f'other_angles[0,0:6]: {other_angles[0,0:6]}')
+    # print(f'bone_lengths[0,0:3]: {bone_lengths[0,0:3]}')
 
 
-    camera_intrinsic_matrix = torch.tensor([[[640, 0, 320],
-                  [0, 640, 320],
-                  [0, 0, 1]]], dtype=torch.float32)
+    camera_intrinsic_matrix = torch.tensor(
+    [[[282.9000,   0.0000, 160.0000],
+         [  0.0000, 282.9000, 160.0000],
+         [  0.0000,   0.0000,   1.0000]]], dtype=torch.float32)
 
     forward_kinematics = ForwardKinematics()
+
     # Calculate the positions
-    positions = forward_kinematics(root_angles, other_angles, bone_lengths, camera_intrinsic_matrix)
-
-    positions_xyz, positions_uv = positions
-    # Convert positions to a more readable format if needed, e.g., a list of tuples
-    print('positions_xyz.shape', positions_xyz.shape)
-    print(f'positions_xyz[0,0:3]: {positions_xyz[0,0:3]}')
-
-
-    print('positions_uv.shape', positions_uv.shape)
-    print(f'positions_uv[0,0:3]: {positions_uv[0,0:3]}')
+    # positions = forward_kinematics(root_angles, other_angles, bone_lengths, camera_intrinsic_matrix)
+    # positions_xyz, positions_uv = positions
+    # # Convert positions to a more readable format if needed, e.g., a list of tuples
+    # print('positions_xyz.shape', positions_xyz.shape)
+    # print(f'positions_xyz[0,0:3]: {positions_xyz[0,0:3]}')
+    keypoint_xyz21_normed = torch.tensor(
+        [
+            [
+                [ 0.0000,  0.0000,  1.0000],
+                [ 1,  2, 2],
+                [ -1,  2, 4],
+                [ 1,  2, 1],
+                # [ 0.3935,  0.5777, -0.8612],
+                # [-0.6272,  2.1604, -4.3848],
+                # [-0.4883,  1.8418, -3.9199],
+                # [-0.3185,  1.3671, -3.2746],
+                # [-0.0822,  0.9387, -2.5328],
+                # [-0.7223,  3.0409, -3.4931],
+                # [-0.7756,  2.3451, -3.3204],
+                # [-0.8046,  1.6778, -3.1375],
+                # [-0.6458,  1.0149, -2.4058],
+                # [-1.0258,  2.9434, -3.1171],
+                # [-1.0845,  2.2369, -2.8580],
+                # [-1.1188,  1.6515, -2.6853],
+                # [-1.0037,  1.0606, -2.0857],
+                # [-1.6457,  2.6677, -2.6649],
+                # [-1.6510,  2.2775, -2.4947],
+                # [-1.6282,  1.8484, -2.3296],
+                # [-1.3525,  1.1717, -1.5954]
+            ]
+        ])
+    
+    keypoint_xyz21_rel_normed = torch.tensor([[[ 0.0000,  0.0000,  0.0000],
+         [ 0.2332,  2.2252, -3.0206],
+         [ 0.3983,  1.7986, -2.4160]]])
+    
+    keypoint_scale = torch.tensor([[0.0394]])
+    kp_coord_xyz_root = torch.tensor([[ 0.0049, -0.0572,  0.7018]])
+    keypoint_uv21_gt =  torch.tensor(
+        [
+            [
+                [162.0000, 136.9000],
+                [166.8000, 174.7000],
+                [169.6000, 166.3000],
+                [172.6000, 154.0000],
+                # [168.6000, 145.4000],
+                # [149.4000, 174.9000],
+                # [152.6000, 167.9000],
+                # [156.2000, 158.3000],
+                # [160.8000, 150.5000],
+                # [148.2000, 191.3000],
+                # [147.3000, 177.4000],
+                # [146.9000, 164.3000],
+                # [150.4000, 151.9000],
+                # [142.7000, 188.6000],
+                # [141.8000, 174.8000],
+                # [141.4000, 163.7000],
+                # [144.2000, 152.9000],
+                # [131.6000, 182.6000],
+                # [131.8000, 175.2000],
+                # [132.5000, 167.2000],
+                # [138.6000, 155.1000]
+            ]
+        ])
+    # keypoint_uv21 = forward_kinematics.project(keypoint_xyz21_normed, camera_intrinsic_matrix, keypoint_scale, kp_coord_xyz_root)
+    keypoint_xyz21_absolute = forward_kinematics.convert_rel_normalized_to_absolute(keypoint_xyz21_rel_normed, keypoint_scale, kp_coord_xyz_root)
+    keypoint_uv21 = forward_kinematics.project_xyz_to_uv(keypoint_xyz21_absolute, camera_intrinsic_matrix)
+    print('keypoint_uv21.shape', keypoint_uv21.shape)
+    # print(f'positions_uv[0,0:3]: {positions_uv[0,0:3]}')
+    print('keypoint_uv21\n', keypoint_uv21)
