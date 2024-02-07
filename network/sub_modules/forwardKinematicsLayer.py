@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from collections import deque
 import numpy as np
+import math
 
 import sys
 sys.path.append('../..')  
@@ -11,7 +12,7 @@ from config.config import *
 
     
 
-def get_rotation_matrix(angles, device = 'cpu'):
+def get_right_hand_rotation_matrix(angles, device = 'cpu'):
     """ Compute the rotation matrix based on the provided angle vector.
     Angles vector contains rotation angles in radians along the x, y, and z axis.
     """
@@ -32,11 +33,33 @@ def get_rotation_matrix(angles, device = 'cpu'):
     R = R_x @ R_y @ R_z
     return R
 
+def get_left_hand_rotation_matrix(angles, device = 'cpu'):
+    """ Compute the rotation matrix for a left-handed coordinate system
+    based on the provided angle vector. Angles vector contains rotation
+    angles in radians along the x, y, and z axis.
+    """
+    sin, cos = torch.sin, torch.cos
+    x, y, z = angles
+    R_x = torch.tensor([[1, 0, 0],
+                        [0, cos(x), sin(x)],
+                        [0, -sin(x), cos(x)]], device=device, dtype=torch.float32)
 
-def get_batch_rotation_matrix(angles, device='cpu'):
+    R_y = torch.tensor([[cos(y), 0, -sin(y)],
+                        [0, 1, 0],
+                        [sin(y), 0, cos(y)]], device=device, dtype=torch.float32)
+
+    R_z = torch.tensor([[cos(z), sin(z), 0],
+                        [-sin(z), cos(z), 0],
+                        [0, 0, 1]], device=device, dtype=torch.float32)
+
+    R = R_x @ R_y @ R_z
+    return R
+
+
+def get_right_hand_batch_rotation_matrix(angles, device='cpu'):
 
     """ 
-    angles size: B*3 (B: batch_size; 3: number of rotation angles for a joint)
+    angles size: B*3 (B: batch_size; 3: number of rotation angles in radian for a joint)
     Compute the rotation matrix based on the provided angle tensor.
     angles tensor contains rotation angles in radians along the x, y, and z axis for multiple samples in a batch.
     """
@@ -66,6 +89,48 @@ def get_batch_rotation_matrix(angles, device='cpu'):
     R_z[:, 0, 0] = cos(z)
     R_z[:, 0, 1] = -sin(z)
     R_z[:, 1, 0] = sin(z)
+    R_z[:, 1, 1] = cos(z)
+    R_z[:, 2, 2] = 1
+    
+    R = torch.bmm(torch.bmm(R_x, R_y), R_z)
+    return R
+
+
+
+
+def get_left_hand_batch_rotation_matrix(angles, device='cpu'):
+
+    """ 
+    angles size: B*3 (B: batch_size; 3: number of rotation angles in radian for a joint)
+    Compute the rotation matrix based on the provided angle tensor.
+    angles tensor contains rotation angles in radians along the x, y, and z axis for multiple samples in a batch.
+    """
+    sin, cos = torch.sin, torch.cos
+    
+    batch_size = angles.size(0)
+    # print(f'angles.shape: {angles.shape}')
+    # Initialize empty rotation matrices
+    R_x = torch.zeros(batch_size, 3, 3, device=device, dtype=torch.float32)
+    R_y = torch.zeros(batch_size, 3, 3, device=device, dtype=torch.float32)
+    R_z = torch.zeros(batch_size, 3, 3, device=device, dtype=torch.float32)
+
+    x, y, z = angles[:, 0], angles[:, 1], angles[:, 2]
+
+    R_x[:, 0, 0] = 1
+    R_x[:, 1, 1] = cos(x)
+    R_x[:, 1, 2] = sin(x)
+    R_x[:, 2, 1] = -sin(x)
+    R_x[:, 2, 2] = cos(x)
+
+    R_y[:, 0, 0] = cos(y)
+    R_y[:, 0, 2] = -sin(y)
+    R_y[:, 1, 1] = 1
+    R_y[:, 2, 0] = sin(y)
+    R_y[:, 2, 2] = cos(y)
+    
+    R_z[:, 0, 0] = cos(z)
+    R_z[:, 0, 1] = sin(z)
+    R_z[:, 1, 0] = -sin(z)
     R_z[:, 1, 1] = cos(z)
     R_z[:, 2, 2] = 1
     
@@ -114,9 +179,9 @@ class ForwardKinematics(nn.Module):
             There are 23 other_angles in total, from *1 to *3, * represents A, B, C, D, E, the order is from 1~3, from A~E.
             
             ## thumb
-            other_angles[0:3] is the three rotation angles of A1 in the x y z direction, A1
-            other_angles[3:6] is the three rotation angles of A2 in the x y z direction, A2
-            other_angles[6] is a rotation angle in the Y direction of A3
+            other_angles[0:3] is the three rotation angles of A1 in the x y z direction, A1, 
+            other_angles[3:6] is the three rotation angles of A2 in the x y z direction, A2, 
+            other_angles[6] is a rotation angle in the Y direction of A3, 
 
             ## other fingers
             other_angles[7:9] is the two rotation angles of B1 in the x and Y directions
@@ -139,7 +204,7 @@ class ForwardKinematics(nn.Module):
 
         bs, num_points = bone_lengths.shape       
         positions_xyz = torch.zeros(bs, 1, 3, device=self.device)  # root xyz position
-        rotations = get_batch_rotation_matrix(root_angles, self.device) 
+        rotations = get_right_hand_batch_rotation_matrix(root_angles, self.device) 
         # print(f'rotations.shape', rotations.shape) # # torch.Size([bs, 3, 3])
         rotations = rotations.unsqueeze(dim=1)
         # print(f'rotations.shape', rotations.shape) # # torch.Size([bs, 1, 3, 3])
@@ -147,7 +212,7 @@ class ForwardKinematics(nn.Module):
         # Define the sequence of nodes
         nodes = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'C4', 'D1', 'D2', 'D3', 'D4', 'E1', 'E2', 'E3', 'E4']
         angle_idx = 0
-        
+        # print('bone_lengths.shape', bone_lengths.shape)
         for i, node in enumerate(nodes):
             if i % 4 == 0:  # First joint of each finger
                 parent_rotation = rotations[:, 0]
@@ -168,13 +233,13 @@ class ForwardKinematics(nn.Module):
                 # Get the rotation for the current node
                 if node.endswith('1') or node.endswith('2'):  # First joint of each finger, has x, y, z rotation angles
                     joint_angles = other_angles[:, angle_idx:angle_idx+3]
-                    joint_local_rotation = get_batch_rotation_matrix(joint_angles, self.device)
+                    joint_local_rotation = get_right_hand_batch_rotation_matrix(joint_angles, self.device)
                     angle_idx += 3                
                 elif node.endswith('3'):  # Second and third joint of each finger, has only Y rotation angle
                     joint_angles = torch.zeros((joint_angles.shape[0], 3), device=self.device)
                     joint_angles[:, 1] = other_angles[:, angle_idx]
                     # print(f'joint_angles.shape: {joint_angles.shape}') ##  torch.Size([bs, 3])
-                    joint_local_rotation = get_batch_rotation_matrix(joint_angles, self.device)
+                    joint_local_rotation = get_right_hand_batch_rotation_matrix(joint_angles, self.device)
                     angle_idx += 1
                 else:
                     # elif node.endswith('4'):  # Tip of the finger, has no rotation of its own
@@ -188,19 +253,21 @@ class ForwardKinematics(nn.Module):
                     joint_angles = torch.zeros((joint_angles.shape[0], 3), device=self.device)
                     joint_angles[:, 0] = other_angles[:, angle_idx] # x angles
                     joint_angles[:, 1] = other_angles[:, angle_idx+1] # Y angles
-                    joint_local_rotation = get_batch_rotation_matrix(joint_angles, self.device)
+                    joint_local_rotation = get_right_hand_batch_rotation_matrix(joint_angles, self.device)
                     angle_idx += 2
                 
                 elif not node.endswith('4'):  # Second and third joint of each finger, has only x rotation angle
                     joint_angles = torch.zeros((joint_angles.shape[0], 3), device=self.device)
                     joint_angles[:, 0] = other_angles[:, angle_idx]
-                    joint_local_rotation = get_batch_rotation_matrix(joint_angles, self.device)
+                    joint_local_rotation = get_right_hand_batch_rotation_matrix(joint_angles, self.device)
                     angle_idx += 1
                 else:
                     # elif node.endswith('4'):  # Tip of the finger, has no rotation of its own
                     joint_local_rotation = torch.stack([torch.eye(3, device=self.device) for _ in range(bs)])
             # print(f'joint_local_rotation.shape', joint_local_rotation.shape) # torch.Size([bs, 3，3])
             # print(f'node: {node}')
+            # print(f'joint_local_rotation: {joint_local_rotation}')
+            # print(f'parent_rotation: {parent_rotation}')
             # print(f'parent_rotation.shape', parent_rotation.shape) # torch.Size([bs, 3, 3])
             # print(f'joint_local_rotation.shape', joint_local_rotation.shape) # torch.Size([bs, 3, 3])
                     
@@ -214,7 +281,7 @@ class ForwardKinematics(nn.Module):
             #### Calculate the global position for the current node
             joint_offset = torch.zeros(bs, 3, device=self.device)
             # print(f'bone_length.shape', bone_length.shape) # torch.Size([bs])
-            joint_offset[:, 1] = bone_length
+            joint_offset[:, 2] = bone_length
             # print(f'joint_offset.shape', joint_offset.shape) # torch.Size([bs, 3])
 
             joint_offset = joint_offset.unsqueeze(1)
@@ -241,8 +308,16 @@ class ForwardKinematics(nn.Module):
             positions_xyz = torch.cat([positions_xyz, global_position.unsqueeze(1)], dim=1)
             # print(f'positions_xyz.shape', positions_xyz.shape) # torch.Size([bs, num_joint, 3])
 
+
         # print(f'positions_xyz.shape', positions_xyz.shape) # torch.Size([bs, 21, 3])
         kp_coord_xyz21_absolute = self.convert_rel_normalized_to_absolute(positions_xyz, index_root_bone_length, kp_coord_xyz_root)
+        # print(f'kp_coord_xyz21_absolute.shape', kp_coord_xyz21_absolute.shape) # torch.Size([bs, 21, 3])
+
+
+        for i in range(1, 21, 4):
+            kp_coord_xyz21_absolute[:,[i, i + 3]] = kp_coord_xyz21_absolute[:,[i + 3, i]]
+            kp_coord_xyz21_absolute[:,[i + 1, i + 2]] = kp_coord_xyz21_absolute[:,[i + 2, i + 1]]
+
         kp_coord_uv21 = self.project_xyz_to_uv(kp_coord_xyz21_absolute, self.camera_intrinsic_matrix)
         return [kp_coord_xyz21_absolute, kp_coord_uv21]
 
@@ -365,34 +440,6 @@ class ForwardKinematics(nn.Module):
         # print('uv[0]', uv[0])
 
         return uv
-    
-    # def project(self, positions_xyz, camera_intrinsic_matrix, index_root_bone_length):
-    #     bs, num_points, _ = positions_xyz.shape
-
-    #     # 转换为齐次坐标，最后一维添加 1
-    #     ones = torch.ones(bs, num_points, 1, device=positions_xyz.device)
-    #     positions_xyz_homogeneous = torch.cat((positions_xyz, ones), dim=2)
-
-    #     # 调整形状以与相机内参矩阵匹配
-    #     points_3d_homogeneous = positions_xyz_homogeneous.permute(0, 2, 1)
-
-    #     # 缩放点坐标
-    #     index_root_bone_length_expanded = index_root_bone_length.unsqueeze(2)
-    #     points_3d_homogeneous = points_3d_homogeneous * index_root_bone_length_expanded
-
-    #     # 使用批矩阵乘法
-    #     p = torch.bmm(camera_intrinsic_matrix, points_3d_homogeneous)
-
-    #     # 避免除以 0 的情况
-    #     p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[:, -1, :])
-
-    #     # 正规化以得到最终的 2D 坐标
-    #     uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
-
-    #     return uv
-
-
-
 
 
 
@@ -491,3 +538,37 @@ if __name__  == '__main__':
     print('keypoint_uv21.shape', keypoint_uv21.shape)
     # print(f'positions_uv[0,0:3]: {positions_uv[0,0:3]}')
     print('keypoint_uv21\n', keypoint_uv21)
+
+
+
+    root_angles = torch.tensor([[0,0,math.pi/2]])
+    other_angles = torch.tensor([[0,math.pi/2,0,     0,0,0,      0,
+                                  math.pi/2,0,     0,      0,
+                                  0,0,     0,      0,
+                                  0,0,     0,      0,
+                                  0,0,     0,      0,                                  
+                                  ]])
+
+    other_angles = torch.tensor([[0,math.pi/2,0,     0,0,0,      0,
+                                  0,0,     0,      0,
+                                  0,0,     0,      0,
+                                  0,0,     0,      0,
+                                  0,0,     0,      0,                                  
+                                  ]])
+    
+    bone_lengths = torch.tensor([
+        [1,1,1,1,
+         1,1,1,1,
+         1,1,1,1,
+         1,1,1,1,
+         1,1,1,1]])
+    camera_intrinsic_matrix = torch.tensor(
+    [[[320.9000,   0.0000, 160.0000],
+         [  0.0000, 320.9000, 160.0000],
+         [  0.0000,   0.0000,   1.0000]]], dtype=torch.float32)
+
+    index_root_bone_length = torch.tensor([[1]])
+    kp_coord_xyz_root = torch.tensor([[1,1,1]])
+    kp_coord_xyz21_absolute, kp_coord_uv21 = forward_kinematics.forward(root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root)
+    print('kp_coord_xyz21_absolute', kp_coord_xyz21_absolute)
+    print('kp_coord_uv21', kp_coord_uv21)

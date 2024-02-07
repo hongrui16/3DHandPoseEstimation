@@ -498,8 +498,8 @@ if __name__ == '__main__':
         print('index_root_bone_length.shape:', index_root_bone_length.shape) # torch.Size([BS, 1])
         print('')
         # print('keypoints_xyz[:, :3]', keypoints_xyz[:, :3])
-        print('keypoint_xyz21[:, :3]\n', keypoint_xyz21[:, :3])
-        print('keypoint_uv21[:, :3]\n', keypoint_uv21[:, :3])
+        print('keypoint_xyz21[:, :6]\n', keypoint_xyz21[:, :6])
+        print('keypoint_uv21[:, :3]\n', keypoint_uv21[:, :6])
         # print('keypoint_vis21[:, :3]', keypoint_vis21[:, :3])
         print('keypoint_xyz21_rel_normed[:, :3]\n', keypoint_xyz21_rel_normed[:, :3])
 
