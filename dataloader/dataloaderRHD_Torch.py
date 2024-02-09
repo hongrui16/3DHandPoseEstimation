@@ -22,7 +22,7 @@ from utils.relative_trafo_torch import bone_rel_trafo
 
 
 class RHD_HandKeypointsDatasetTorch(Dataset):
-    def __init__(self, root_dir, set_type='training', transform=None, debug = False):
+    def __init__(self, root_dir, set_type='training', transform=None, debug = False, device = 'cpu'):
         assert set_type in ['evaluation', 'training']
 
         self.root_dir = root_dir
@@ -310,6 +310,15 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
                                         [0.0, 0.0, 1.0]], dtype=torch.float32)
 
             data_dict['camera_intrinsic_matrix'] = torch.matmul(trans_matrix, torch.matmul(scale_matrix, camera_intrinsic_matrix))
+
+            ### Make coords relative to root joint
+            # kp_coord_xyz_root = kp_coord_xyz21[0, :]  # this is the palm coord
+            # kp_coord_xyz21_rel = kp_coord_xyz21 - kp_coord_xyz_root
+            # index_root_bone_length = torch.sqrt((kp_coord_xyz21_rel[12, :] - kp_coord_xyz21_rel[11, :]).pow(2).sum())
+            # data_dict['keypoint_scale'] = index_root_bone_length.unsqueeze(-1)
+            # data_dict['keypoint_xyz21_rel_normed'] = kp_coord_xyz21_rel / index_root_bone_length ##normalized by length of 12->11
+            # data_dict['kp_coord_xyz_root'] = kp_coord_xyz_root
+
 
 
         ### DEPENDENT DATA ITEMS: Scoremap from the SUBSET of 21 keypoints

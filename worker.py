@@ -53,8 +53,8 @@ class Worker(object):
 
             train_set = RHD_HandKeypointsDatasetTorch(root_dir=dataset_root_dir, set_type='training')
             val_set = RHD_HandKeypointsDatasetTorch(root_dir=dataset_root_dir, set_type='evaluation')
-        self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
-        self.val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False)
+        self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=10)
+        self.val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=10)
 
         log_dir = sorted(glob.glob(os.path.join(save_log_dir, dataset_name, 'run_*')), key=lambda x: int(x.split('_')[-1]))
         run_id = int(log_dir[-1].split('_')[-1]) + 1 if log_dir else 0
@@ -135,7 +135,10 @@ class Worker(object):
             # if idx < 112:
             #     continue
             # print('idx', idx)
-            image = sample['image'].to(self.device)
+            if hand_crop:
+                image = sample['image_crop'].to(self.device)
+            else:
+                image = sample['image'].to(self.device)
 
             
             keypoint_vis21_gt = sample['keypoint_vis21'].to(self.device) # visiable points mask
@@ -187,8 +190,8 @@ class Worker(object):
                 loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_uv: {loss_uv.item():.4f}, L_diff: {loss_diffusion.item():.4f}'
                 tbar.set_description(loginfo)
 
-            if idx % 20 == 0:
-                self.write_loginfo_to_txt(loginfo)
+            # if idx % 20 == 0:
+            #     self.write_loginfo_to_txt(loginfo)
             # if iter % 50 == 0:
             #     gpu_info = get_gpu_utilization_as_string()
             #     print(gpu_info)
@@ -256,10 +259,11 @@ class Worker(object):
 if __name__ == '__main__':
     # fast_debug = True
     fast_debug = False
-    gpu_idx = 2
-    worker = Worker()
+    gpu_idx = 3
+    worker = Worker(gpu_idx)
     worker.forward(fast_debug)
 
     # gpu_info = get_gpu_utilization_as_string()
     # print('gpu_info', gpu_info)
 
+# salloc -p gpuq -q gpu --nodes=1 --ntasks-per-node=30 --gres=gpu:A100.80gb:1 --mem=80gb -t 0-24:00:00

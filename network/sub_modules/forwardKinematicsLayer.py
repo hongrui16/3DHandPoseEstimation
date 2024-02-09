@@ -146,7 +146,7 @@ class ForwardKinematics(nn.Module):
     
     def forward(self, root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root):
         '''
-        right hand coordinate system
+        right hand coordinate system, all angles are radian.
         X-axis: Points in the direction of your thumb, horizontally to the right.
         Y-axis: perpendicular to the direction of the palm, upward.
         Z-axis: Points in the direction of the tip of the middle finger, forward.

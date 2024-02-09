@@ -61,7 +61,8 @@ class BoneAnglePrediction(torch.nn.Module):
 
         other_angles = self.mlp2(x)
         # Scale other_angles to the range of [0, π/2]
-        other_angles = other_angles * math.pi / 2
+        other_angles = other_angles * math.pi - math.pi/2
+
 
         return root_angles, other_angles
     
