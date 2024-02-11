@@ -23,17 +23,45 @@ from utils.relative_trafo_torch import bone_rel_trafo
 
 def plot_uv_on_image(keypoints_uv, image):
     # Adjust keypoints to ensure they are within the image boundaries of 320x320
-    keypoints_uv_clipped = np.clip(keypoints_uv, 0, 319)
-
-    # Create a new blank image of size 320x320x3 with white background
-    image = np.ones((320, 320, 3), dtype=np.uint8) * 255
+    keypoints_uv_filtered = keypoints_uv[(keypoints_uv[:, 0] < 320) & (keypoints_uv[:, 1] < 320)]
 
     # Re-plot the keypoints on the image, this time ensuring they are within the image boundaries
     plt.figure(figsize=(6, 6))
     plt.imshow(image)
-    plt.scatter(keypoints_uv_clipped[:, 0], keypoints_uv_clipped[:, 1], c='red', s=10)  # plot keypoints in red
+    plt.scatter(keypoints_uv_filtered[:, 0], keypoints_uv_filtered[:, 1], c='red', s=10)  # plot keypoints in red
     plt.axis('off')  # remove axes for better visualization
     plt.show()
+
+
+def plot_mask_on_image(hand_map_l, hand_map_r, image):
+    # Convert binary masks to RGB color masks
+    hand_mask_l_color = np.zeros((hand_map_l.shape[0], hand_map_l.shape[1], 3), dtype=np.uint8)
+    hand_mask_r_color = np.zeros((hand_map_r.shape[0], hand_map_r.shape[1], 3), dtype=np.uint8)
+
+    hand_mask_l_color[hand_map_l.numpy() == 1] = [255, 0, 0]  # Red for left hand
+    hand_mask_r_color[hand_map_r.numpy() == 1] = [0, 255, 0]  # Green for right hand
+
+    # Overlay color masks on the original image
+    overlay_image = image.copy()
+    overlay_image[hand_mask_l_color[:, :, 0] == 255] = hand_mask_l_color[hand_mask_l_color[:, :, 0] == 255]
+    overlay_image[hand_mask_r_color[:, :, 1] == 255] = hand_mask_r_color[hand_mask_r_color[:, :, 1] == 255]
+
+    # Display the result
+    plt.figure(figsize=(6, 6))
+    plt.imshow(overlay_image)
+    plt.axis('off')
+
+    # Calculate centroids and add text labels for left and right hand masks
+    l_y, l_x = np.where(hand_map_l.numpy() == 1)
+    if len(l_x) > 0 and len(l_y) > 0:  # Check if left hand mask exists
+        plt.text(l_x.mean(), l_y.mean(), 'Left', color='white', fontsize=12, ha='center', va='center')
+
+    r_y, r_x = np.where(hand_map_r.numpy() == 1)
+    if len(r_x) > 0 and len(r_y) > 0:  # Check if right hand mask exists
+        plt.text(r_x.mean(), r_y.mean(), 'Right', color='white', fontsize=12, ha='center', va='center')
+
+    plt.show()
+
 
 
 class RHD_HandKeypointsDatasetTorch(Dataset):
@@ -110,9 +138,10 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
                   'keypoint_uv': keypoint_uv, 'keypoint_vis': keypoint_vis,
                   'keypoint_xyz': keypoint_xyz, 'camera_intrinsic_matrix': camera_intrinsic_matrix}
 
-        if img_name == '00028.png':
-            print('keypoint_uv', keypoint_uv)
-            plot_uv_on_image(keypoint_uv, image)
+        # if img_name == '00028.png':
+        #     print('keypoint_uv', keypoint_uv)
+        #     print('keypoint_vis', keypoint_vis)
+        #     plot_uv_on_image(keypoint_uv, image[:,:,::-1].copy())
 
 
         data_dict = dict()
@@ -188,7 +217,9 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         num_px_right_hand = hand_map_r.sum()
         # print('num_px_left_hand.shape', num_px_left_hand.shape)
         # print('num_px_right_hand.shape', num_px_right_hand.shape)
-
+        print(f'num_px_left_hand:{num_px_left_hand}, num_px_right_hand:{num_px_right_hand}')
+        if img_name == '00028.png':
+            plot_mask_on_image(hand_map_l, hand_map_r, image_rgb.copy())
         # Produce the 21 subset using the segmentation masks
         # We only deal with the more prominent hand for each frame and discard the second set of keypoints
         kp_coord_xyz_left = keypoint_xyz[:21, :]
@@ -209,9 +240,13 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         data_dict['hand_side'] = F.one_hot(hand_side, num_classes=2).float()
         print('hand_side', hand_side)
 
+        if img_name == '00028.png':
+            print('keypoint_xyz', keypoint_xyz)
         # Invert the X-axis coordinates if it is the left hand
         kp_coord_xyz21 = torch.where(hand_side == 0, torch.cat([-kp_coord_xyz21[..., :1], kp_coord_xyz21[..., 1:]], dim=-1), kp_coord_xyz21)
         data_dict['keypoint_xyz21'] = kp_coord_xyz21
+        if img_name == '00028.png':
+            print('kp_coord_xyz21', kp_coord_xyz21)
 
         # Make coords relative to root joint
         kp_coord_xyz_root = kp_coord_xyz21[0, :]  # this is the palm coord
@@ -254,6 +289,9 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         # print('cond_left[:,:2].shape', cond_left[:,:2].shape)
 
         data_dict['keypoint_uv21'] = keypoint_uv21
+        if img_name == '00028.png':
+            print('keypoint_vis21', keypoint_vis21)
+            print('keypoint_uv21', keypoint_uv21)
 
         '''
         Assuming hand_ Side 0 represents left hand, 1 represents right hand
@@ -262,6 +300,7 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         '''
         if img_name == '00028.png':
             print('keypoint_uv21', keypoint_uv21)
+            print('hand_side', hand_side)
         mirrored_u = torch.where(hand_side == 0, width - keypoint_uv21[:, 0], keypoint_uv21[:, 0])
         data_dict['keypoint_uv21'] = torch.cat([mirrored_u.unsqueeze(1), keypoint_uv21[:, 1:2]], dim=1)
         if img_name == '00028.png':
@@ -487,7 +526,7 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
 
 if __name__ == '__main__':
 
-    dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+    dataset_dir = '../dataset/RHD'
 
     transforms = transforms.Compose([
             tr.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),

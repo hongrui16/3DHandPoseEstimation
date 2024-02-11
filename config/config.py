@@ -1,4 +1,4 @@
-dataset_root_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+dataset_root_dir = 'dataset/RHD'
 save_log_dir = 'logs'
 dataset_name = 'RHD'
 
