@@ -19,8 +19,8 @@ from config.config import *
 # from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
 
 from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
-from dataloader.dataloaderRHD import RHD_HandKeypointsDataset
-from dataloader.dataloaderRHD_Torch import RHD_HandKeypointsDatasetTorch
+from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
+from dataloader.RHD.dataloaderRHD_Torch import RHD_HandKeypointsDatasetTorch
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
