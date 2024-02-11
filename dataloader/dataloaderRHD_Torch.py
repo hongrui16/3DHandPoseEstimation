@@ -9,6 +9,7 @@ import numpy as np
 import cv2
 import torch.nn.functional as F
 import time
+import matplotlib.pyplot as plt
 
 import sys
 sys.path.append('../')  
@@ -19,6 +20,20 @@ from utils import transformations as tr
 from utils.general_torch import crop_image_from_xy_torch
 # from utils.canonical_trafo import canonical_trafo, flip_right_hand
 from utils.relative_trafo_torch import bone_rel_trafo
+
+def plot_uv_on_image(keypoints_uv, image):
+    # Adjust keypoints to ensure they are within the image boundaries of 320x320
+    keypoints_uv_clipped = np.clip(keypoints_uv, 0, 319)
+
+    # Create a new blank image of size 320x320x3 with white background
+    image = np.ones((320, 320, 3), dtype=np.uint8) * 255
+
+    # Re-plot the keypoints on the image, this time ensuring they are within the image boundaries
+    plt.figure(figsize=(6, 6))
+    plt.imshow(image)
+    plt.scatter(keypoints_uv_clipped[:, 0], keypoints_uv_clipped[:, 1], c='red', s=10)  # plot keypoints in red
+    plt.axis('off')  # remove axes for better visualization
+    plt.show()
 
 
 class RHD_HandKeypointsDatasetTorch(Dataset):
@@ -95,6 +110,9 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
                   'keypoint_uv': keypoint_uv, 'keypoint_vis': keypoint_vis,
                   'keypoint_xyz': keypoint_xyz, 'camera_intrinsic_matrix': camera_intrinsic_matrix}
 
+        if img_name == '00028.png':
+            print('keypoint_uv', keypoint_uv)
+            plot_uv_on_image(keypoint_uv, image)
 
 
         data_dict = dict()
@@ -125,8 +143,7 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
             keypoint_uv += noise
 
         data_dict['keypoint_uv'] = keypoint_uv
-        if img_name == '00028.png':
-            print('keypoint_uv', keypoint_uv)
+
 
         # 3. Camera intrinsics
         camera_intrinsic_matrix = torch.tensor(camera_intrinsic_matrix, dtype=torch.float32)
