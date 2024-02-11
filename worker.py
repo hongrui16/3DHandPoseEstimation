@@ -26,12 +26,15 @@ from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
 
 class Worker(object):
-    def __init__(self, gpu_index = 0):
+    def __init__(self, gpu_index = None):
         cuda_valid = torch.cuda.is_available()
         if cuda_valid:
             gpu_index = gpu_index  # # Here set the index of the GPU you want to use
             print(f"CUDA is available, using GPU {gpu_index}")
-            device = torch.device(f"cuda:{gpu_index}")
+            if gpu_idx is None:
+                device = torch.device(f"cuda")
+            else:
+                device = torch.device(f"cuda:{gpu_index}")
         else:
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
@@ -259,7 +262,8 @@ class Worker(object):
 if __name__ == '__main__':
     # fast_debug = True
     fast_debug = False
-    gpu_idx = 3
+    gpu_idx = 1
+    gpu_idx = None
     worker = Worker(gpu_idx)
     worker.forward(fast_debug)
 
@@ -267,3 +271,4 @@ if __name__ == '__main__':
     # print('gpu_info', gpu_info)
 
 # salloc -p gpuq -q gpu --nodes=1 --ntasks-per-node=30 --gres=gpu:A100.80gb:1 --mem=80gb -t 0-24:00:00
+# salloc -p gpuq -q gpu --nodes=1 --ntasks-per-node=30 --gres=gpu:A100.40gb:1 --mem=50gb -t 0-24:00:00
