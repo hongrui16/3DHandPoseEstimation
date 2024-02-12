@@ -20,16 +20,24 @@ from utils import transformations as tr
 from utils.general_torch import crop_image_from_xy_torch
 # from utils.canonical_trafo import canonical_trafo, flip_right_hand
 from utils.relative_trafo_torch import bone_rel_trafo
+from utils.coordinate_trans import camera_xyz_to_uv
 
-def plot_uv_on_image(keypoints_uv, image):
+def plot_uv_on_image(keypoints_uv, image, keypoints_vis = None, horizon_flip = False):
+    # print(f'keypoints_vis.shape: {keypoints_vis.shape}')
     # Adjust keypoints to ensure they are within the image boundaries of 320x320
-    keypoints_uv_filtered = keypoints_uv[(keypoints_uv[:, 0] < 320) & (keypoints_uv[:, 1] < 320)]
+    if not keypoints_vis is None:
+        keypoints_uv = keypoints_uv[keypoints_vis]
+    
+    if horizon_flip:
+        image = image[:,::-1]
+        h, w, _ = image.shape
+        keypoints_uv[:, 0] = w - keypoints_uv[:, 0]
 
     # Re-plot the keypoints on the image, this time ensuring they are within the image boundaries
     plt.figure(figsize=(6, 6))
     plt.imshow(image)
-    plt.scatter(keypoints_uv_filtered[:, 0], keypoints_uv_filtered[:, 1], c='red', s=10)  # plot keypoints in red
-    plt.axis('off')  # remove axes for better visualization
+    plt.scatter(keypoints_uv[:, 0], keypoints_uv[:, 1], c='red', s=10)  # plot keypoints in red
+    plt.axis('on')  # remove axes for better visualization
     plt.show()
 
 
@@ -49,7 +57,7 @@ def plot_mask_on_image(hand_map_l, hand_map_r, image):
     # Display the result
     plt.figure(figsize=(6, 6))
     plt.imshow(overlay_image)
-    plt.axis('off')
+    plt.axis('on')
 
     # Calculate centroids and add text labels for left and right hand masks
     l_y, l_x = np.where(hand_map_l.numpy() == 1)
@@ -217,56 +225,69 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         num_px_right_hand = hand_map_r.sum()
         # print('num_px_left_hand.shape', num_px_left_hand.shape)
         # print('num_px_right_hand.shape', num_px_right_hand.shape)
-        print(f'num_px_left_hand:{num_px_left_hand}, num_px_right_hand:{num_px_right_hand}')
-        # if img_name == '00028.png':
-        #     plot_mask_on_image(hand_map_l, hand_map_r, image_rgb.copy())
+        # print(f'num_px_left_hand:{num_px_left_hand}, num_px_right_hand:{num_px_right_hand}')
+        if img_name == '00028.png':
+            # plot_mask_on_image(hand_map_l, hand_map_r, image_rgb.copy())
+            pass
         # Produce the 21 subset using the segmentation masks
         # We only deal with the more prominent hand for each frame and discard the second set of keypoints
-        kp_coord_xyz_left = keypoint_xyz[:21, :]
-        kp_coord_xyz_right = keypoint_xyz[-21:, :]
+        keypoint_xyz_left = keypoint_xyz[:21, :]
+        keypoint_xyz_right = keypoint_xyz[-21:, :]
         
         cond_left = (num_px_left_hand > num_px_right_hand)
-        cond_left = cond_left.repeat(kp_coord_xyz_left.shape[0], kp_coord_xyz_left.shape[1])
+        if img_name == '00028.png':
+            cond_left = torch.tensor(False)
+        #     pass
+        # print('cond_left', cond_left)
+
+        hand_side = torch.where(cond_left, torch.tensor(0), torch.tensor(1))
+        # print('hand_side', hand_side)
+
+        cond_left = cond_left.repeat(keypoint_xyz_left.shape[0], keypoint_xyz_left.shape[1])
         # print('cond_left.shape', cond_left.shape)
-        # print('kp_coord_xyz_left.shape', kp_coord_xyz_left.shape)
-        # print('kp_coord_xyz_right.shape', kp_coord_xyz_right.shape)
+        # print('keypoint_xyz_left.shape', keypoint_xyz_left.shape)
+        # print('keypoint_xyz_right.shape', keypoint_xyz_right.shape)
         
-        # Create a tensor of the same shape as kp_coord_xyz_left, filled with cond_left
+        # Create a tensor of the same shape as keypoint_xyz_left, filled with cond_left
         # Now use this expanded condition in torch.where
-        kp_coord_xyz21 = torch.where(cond_left, kp_coord_xyz_left, kp_coord_xyz_right)
-        # print('kp_coord_xyz21.shape', kp_coord_xyz21.shape)
+        keypoint_xyz21 = torch.where(cond_left, keypoint_xyz_left, keypoint_xyz_right)
+        # print('keypoint_xyz21.shape', keypoint_xyz21.shape)
 
-        hand_side = torch.where(num_px_left_hand > num_px_right_hand, torch.tensor(0), torch.tensor(1))
+        # hand_side = torch.tensor(0)
         data_dict['hand_side'] = F.one_hot(hand_side, num_classes=2).float()
-        print('hand_side', hand_side)
 
-        if img_name == '00028.png':
-            print('keypoint_xyz', keypoint_xyz)
         # Invert the X-axis coordinates if it is the left hand
-        kp_coord_xyz21 = torch.where(hand_side == 0, torch.cat([-kp_coord_xyz21[..., :1], kp_coord_xyz21[..., 1:]], dim=-1), kp_coord_xyz21)
-        data_dict['keypoint_xyz21'] = kp_coord_xyz21
+        keypoint_xyz21 = torch.where(hand_side == 0, torch.cat([-keypoint_xyz21[..., :1], keypoint_xyz21[..., 1:]], dim=-1), keypoint_xyz21)
+        data_dict['keypoint_xyz21'] = keypoint_xyz21
         if img_name == '00028.png':
-            print('kp_coord_xyz21', kp_coord_xyz21)
+            # print('2 keypoint_xyz21', keypoint_xyz21)
+
+            # ori_uv = camera_xyz_to_uv(keypoint_xyz, camera_intrinsic_matrix)
+            # print(f'ori_uv: {ori_uv}')
+            # print(f'keypoint_uv: {keypoint_uv}')
+            # pro_uv21 = camera_xyz_to_uv(keypoint_xyz21, camera_intrinsic_matrix)
+            # print(f'pro_uv21: {pro_uv21}')
+            pass
 
         # Make coords relative to root joint
-        kp_coord_xyz_root = kp_coord_xyz21[0, :]  # this is the palm coord
-        kp_coord_xyz21_rel = kp_coord_xyz21 - kp_coord_xyz_root # relative coords in metric coords
-        index_root_bone_length = torch.sqrt((kp_coord_xyz21_rel[12, :] - kp_coord_xyz21_rel[11, :]).pow(2).sum())
+        keypoint_xyz_root = keypoint_xyz21[0, :]  # this is the palm coord
+        keypoint_xyz21_rel = keypoint_xyz21 - keypoint_xyz_root # relative coords in metric coords
+        index_root_bone_length = torch.sqrt((keypoint_xyz21_rel[12, :] - keypoint_xyz21_rel[11, :]).pow(2).sum())
         data_dict['keypoint_scale'] = index_root_bone_length.unsqueeze(-1)
-        data_dict['keypoint_xyz21_rel_normed'] = kp_coord_xyz21_rel / index_root_bone_length ##normalized by length of 12->11
-        data_dict['kp_coord_xyz_root'] = kp_coord_xyz_root
+        data_dict['keypoint_xyz21_rel_normed'] = keypoint_xyz21_rel / index_root_bone_length ##normalized by length of 12->11
+        data_dict['keypoint_xyz_root'] = keypoint_xyz_root
 
         # Calculate local coordinates
         # Assuming bone_rel_trafo is a defined function compatible with PyTorch
-        kp_coord_xyz21_local = bone_rel_trafo(data_dict['keypoint_xyz21_rel_normed'])
-        data_dict['keypoint_xyz21_local'] = kp_coord_xyz21_local.squeeze() # 
+        keypoint_xyz21_local = bone_rel_trafo(data_dict['keypoint_xyz21_rel_normed'])
+        data_dict['keypoint_xyz21_local'] = keypoint_xyz21_local.squeeze() # 
 
         # calculate viewpoint and coords in canonical coordinates
         '''
-        kp_coord_xyz21_rel_can, rot_mat = canonical_trafo(data_dict['keypoint_xyz21_normed'])
-        kp_coord_xyz21_rel_can, rot_mat = tf.squeeze(kp_coord_xyz21_rel_can), tf.squeeze(rot_mat)
-        kp_coord_xyz21_rel_can = flip_right_hand(kp_coord_xyz21_rel_can, tf.logical_not(cond_left))
-        data_dict['keypoint_xyz21_can'] = kp_coord_xyz21_rel_can
+        keypoint_xyz21_rel_can, rot_mat = canonical_trafo(data_dict['keypoint_xyz21_normed'])
+        keypoint_xyz21_rel_can, rot_mat = tf.squeeze(keypoint_xyz21_rel_can), tf.squeeze(rot_mat)
+        keypoint_xyz21_rel_can = flip_right_hand(keypoint_xyz21_rel_can, tf.logical_not(cond_left))
+        data_dict['keypoint_xyz21_can'] = keypoint_xyz21_rel_can
         data_dict['rot_mat'] = tf.matrix_inverse(rot_mat)
         '''
         
@@ -287,37 +308,50 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
         # print('keypoint_uv_left.shape', keypoint_uv_left.shape)
         # print('keypoint_uv_right.shape', keypoint_uv_right.shape)
         # print('cond_left[:,:2].shape', cond_left[:,:2].shape)
+        # if img_name == '00028.png':
+        #     plot_uv_on_image(keypoint_uv21.numpy(), (255*(0.5+image.permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis21.numpy().squeeze())
+            # plot_uv_on_image(keypoint_uv.numpy(), (255*(0.5+image.permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis.numpy().squeeze())
 
         data_dict['keypoint_uv21'] = keypoint_uv21
-        if img_name == '00028.png':
-            print('keypoint_vis21', keypoint_vis21)
-            print('keypoint_uv21', keypoint_uv21)
+        # if img_name == '00028.png':
+        # #     # print('keypoint_vis21', keypoint_vis21)
+        #     print('1 keypoint_uv21', keypoint_uv21)
 
         '''
         Assuming hand_ Side 0 represents left hand, 1 represents right hand
-        # Mirror transformation on the U coordinate for the left hand,
-        need to be verified whether it is needed.
+        # Mirror transformation on the U coordinate for the left hand. Mirror the whole image for flipping the left hand horizontally.
         '''
-        if img_name == '00028.png':
-            print('keypoint_uv21', keypoint_uv21)
-            print('hand_side', hand_side)
-        mirrored_u = torch.where(hand_side == 0, width - keypoint_uv21[:, 0], keypoint_uv21[:, 0])
-        data_dict['keypoint_uv21'] = torch.cat([mirrored_u.unsqueeze(1), keypoint_uv21[:, 1:2]], dim=1)
-        if img_name == '00028.png':
-            print('data_dict[keypoint_uv21]', data_dict['keypoint_uv21'])
+        image = torch.where(hand_side == 0, image.flip(dims=[2]), image)
+        data_dict['image'] = image
+
+        mirrored_u = torch.where(hand_side == 0, width - keypoint_uv21[:, 0], keypoint_uv21[:, 0])        
+        keypoint_uv21 = torch.cat([mirrored_u.unsqueeze(1), keypoint_uv21[:, 1:2]], dim=1)
+        data_dict['keypoint_uv21'] = keypoint_uv21
 
 
         """ DEPENDENT DATA ITEMS: HAND CROP """
         if self.hand_crop:
             keypoint_uv21 = data_dict['keypoint_uv21']
-            # print('keypoint_uv21.shape', keypoint_uv21.shape)
-            crop_center = keypoint_uv21[12, [1, 0]]
+            # Re-importing torch after code execution state reset
 
-            # catch problem, when no valid kp available (happens almost never)
-            if not torch.all(torch.isfinite(crop_center)):
-                crop_center = torch.tensor([0.0, 0.0])
+            # Assuming keypoint_uv21 is defined with shape [21, 2]
+            # For demonstration, let's define a sample tensor that might contain some keypoints outside the valid range
 
-            crop_center = crop_center.view(2)
+            # Filter keypoints to include only those with values > 0 and < 320 for both dimensions
+            valid_keypoints = keypoint_uv21[(keypoint_uv21[:, 0] > 0) & (keypoint_uv21[:, 0] < width) & 
+                                            (keypoint_uv21[:, 1] > 0) & (keypoint_uv21[:, 1] < height)]
+
+            # Calculate the center of valid keypoints
+            if valid_keypoints.shape[0] > 0:  # Check if there are any valid keypoints
+                crop_center = valid_keypoints.mean(dim=0)
+            else:
+                crop_center = torch.tensor([0.0, 0.0])  # Default or fallback value if no valid keypoints
+
+            crop_center_flipped = crop_center[[1, 0]]  # Flip dimensions to match the original request
+
+
+            crop_center = crop_center_flipped.view(2)
+            # print(f'crop_center: {crop_center}')
 
             if self.crop_center_noise:
                 noise = torch.normal(mean=0.0, std=self.crop_center_noise_sigma, size=(2,))
@@ -328,19 +362,22 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
                 crop_scale_noise = torch.rand(1).item() * 0.2 + 1.0  # 在 1.0 到 1.2 之间
 
             # select visible coords only
-            kp_coord_h = keypoint_uv21[:, 1][keypoint_vis21.squeeze()]
-            kp_coord_w = keypoint_uv21[:, 0][keypoint_vis21.squeeze()]
-            kp_coord_hw = torch.stack([kp_coord_h, kp_coord_w], dim=1)
+            keypoint_h = keypoint_uv21[:, 1][keypoint_vis21.squeeze()]
+            keypoint_w = keypoint_uv21[:, 0][keypoint_vis21.squeeze()]
+            keypoint_hw = torch.stack([keypoint_h, keypoint_w], dim=1)
 
 
             # determine size of crop (measure spatial extend of hw coords first)
-            min_coord = torch.maximum(torch.min(kp_coord_hw, dim=0)[0], torch.tensor(0.0))
-            max_coord = torch.minimum(torch.max(kp_coord_hw, dim=0)[0], torch.tensor(self.image_size))
-
+            min_coord = torch.maximum(torch.min(keypoint_hw, dim=0)[0], torch.tensor(0.0))
+            max_coord = torch.minimum(torch.max(keypoint_hw, dim=0)[0], torch.tensor(self.image_size))
+            # print(f'min_coord: {min_coord}, max_coord: {max_coord}')
             # find out larger distance wrt the center of crop
-            crop_size_best = 2 * torch.maximum(max_coord - crop_center, crop_center - min_coord)
+            crop_size_best = 2 * torch.maximum(max_coord - crop_center, crop_center - min_coord) + 20 ### here, 20 is for margin
+            # print(f'crop_size_best: {crop_size_best}')
+
             crop_size_best = torch.max(crop_size_best)
             crop_size_best = torch.clamp(crop_size_best, min=50.0, max=500.0)
+            # print(f'crop_size_best: {crop_size_best}')
 
             # catch problem, when no valid kp available
             if not torch.all(torch.isfinite(crop_size_best)):
@@ -350,7 +387,8 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
             # calculate necessary scaling
             scale = self.crop_size / crop_size_best
             scale = torch.clamp(scale, min=1.0, max=10.0) * crop_scale_noise
-            data_dict['crop_scale'] = scale
+            # data_dict['crop_scale'] = scale
+            # print(f'scale: {scale}')
 
 
             if self.crop_offset_noise:
@@ -358,41 +396,70 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
                 crop_center += noise
 
             # Crop image
-            img_crop = crop_image_from_xy_torch(torch.unsqueeze(image, 0), crop_center.unsqueeze(0), self.crop_size, scale)
-            data_dict['image_crop'] = torch.squeeze(img_crop)
+            # img_crop = crop_image_from_xy_torch(torch.unsqueeze(image, 0), crop_center.unsqueeze(0), self.crop_size, scale)
+            crop_size_scaled = int(self.crop_size / scale)
+
+            # Calculate crop coordinates
+            y1 = int(crop_center[0] - crop_size_scaled // 2) if int(crop_center[0] - crop_size_scaled // 2) > 0 else 0
+            y2 = y1 + crop_size_scaled if y1 + crop_size_scaled < height else height
+            
+
+            x1 = int(crop_center[1] - crop_size_scaled // 2) if int(crop_center[1] - crop_size_scaled // 2) > 0 else 0
+            x2 = x1 + crop_size_scaled if x1 + crop_size_scaled < width else width
+            
+            # print(f'y1:{y1} ~ y2:{y2}; x1:{x1} ~ x2:{x2}, scale_y:{scale_y}, scale_x:{scale_x}')
+
+            length_y = y2 - y1
+            scale_y = self.crop_size / length_y
+            length_x = x2 - x1
+            scale_x = self.crop_size / length_x
+
+            # Crop and resize
+            cropped_img = image[:, y1:y2, x1:x2]
+            # print('cropped_img.shape', cropped_img.shape)
+            cropped_img = F.interpolate(cropped_img.unsqueeze(0), size=(self.crop_size, self.crop_size), mode='bilinear', align_corners=False)
+            cropped_img = cropped_img.squeeze(0)
+            
+            # print('data_dict[image_crop].shape', data_dict['image_crop'].shape)
 
             # Modify uv21 coordinates
-            crop_center_float = crop_center.float()
-            keypoint_uv21_u = (keypoint_uv21[:, 0] - crop_center_float[1]) * scale + self.crop_size // 2
-            keypoint_uv21_v = (keypoint_uv21[:, 1] - crop_center_float[0]) * scale + self.crop_size // 2
-            keypoint_uv21 = torch.stack([keypoint_uv21_u, keypoint_uv21_v], dim=1)
-            data_dict['keypoint_uv21'] = keypoint_uv21
+            keypoint_uv21_u = (keypoint_uv21[:, 0] - x1) * scale_x
+            keypoint_uv21_v = (keypoint_uv21[:, 1] - y1) * scale_y
+            new_keypoint_uv21 = torch.stack([keypoint_uv21_u, keypoint_uv21_v], dim=1)
+            data_dict['keypoint_uv21'] = new_keypoint_uv21
 
+            # if hand_side.item() == 0:# left hand
+            #     cropped_img = cropped_img.flip(dims=[2])
+            #     new_keypoint_uv21[:, 0] = width - new_keypoint_uv21[:, 0]
+            data_dict['image_crop'] = cropped_img
+            # if img_name == '00028.png':
+            #     plot_uv_on_image(new_keypoint_uv21.numpy(), (255*(0.5+cropped_img.permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis21.numpy().squeeze())
+            #     print(f'new_keypoint_uv21: {new_keypoint_uv21}')
+
+            #     pass
 
             # Modify camera intrinsics
             scale = scale.view(1, -1)
-            scale_matrix = torch.tensor([[scale, 0.0, 0.0],
-                                        [0.0, scale, 0.0],
+            scale_matrix = torch.tensor([[scale_x, 0.0, 0.0],
+                                        [0.0, scale_y, 0.0],
                                         [0.0, 0.0, 1.0]], dtype=torch.float32)
 
-            crop_center_float = crop_center.float()
-            trans1 = crop_center_float[0] * scale - self.crop_size // 2
-            trans2 = crop_center_float[1] * scale - self.crop_size // 2
-            trans_matrix = torch.tensor([[1.0, 0.0, -trans2],
-                                        [0.0, 1.0, -trans1],
+            trans1 = x1* scale_x
+            trans2 = y1* scale_y
+            trans_matrix = torch.tensor([[1.0, 0.0, -trans1],
+                                        [0.0, 1.0, -trans2],
                                         [0.0, 0.0, 1.0]], dtype=torch.float32)
 
-            data_dict['camera_intrinsic_matrix'] = torch.matmul(trans_matrix, torch.matmul(scale_matrix, camera_intrinsic_matrix))
-
-            ### Make coords relative to root joint
-            # kp_coord_xyz_root = kp_coord_xyz21[0, :]  # this is the palm coord
-            # kp_coord_xyz21_rel = kp_coord_xyz21 - kp_coord_xyz_root
-            # index_root_bone_length = torch.sqrt((kp_coord_xyz21_rel[12, :] - kp_coord_xyz21_rel[11, :]).pow(2).sum())
-            # data_dict['keypoint_scale'] = index_root_bone_length.unsqueeze(-1)
-            # data_dict['keypoint_xyz21_rel_normed'] = kp_coord_xyz21_rel / index_root_bone_length ##normalized by length of 12->11
-            # data_dict['kp_coord_xyz_root'] = kp_coord_xyz_root
-
-
+            
+            camera_intrinsic_matrix = torch.matmul(trans_matrix, torch.matmul(scale_matrix, camera_intrinsic_matrix))
+            data_dict['camera_intrinsic_matrix'] = camera_intrinsic_matrix
+            # print('camera_intrinsic_matrix.shape', camera_intrinsic_matrix.shape)
+            # new_pro_uv21 = camera_xyz_to_uv(keypoint_xyz21, camera_intrinsic_matrix)
+            # if img_name == '00028.png':
+            #     plot_uv_on_image(new_pro_uv21.numpy(), (255*(0.5+cropped_img.permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis21.numpy().squeeze())
+            #     pass
+            #     print(f'new_pro_uv21: {new_pro_uv21}')
+            
 
         ### DEPENDENT DATA ITEMS: Scoremap from the SUBSET of 21 keypoints
         if self.calculate_scoremap:
@@ -526,7 +593,7 @@ class RHD_HandKeypointsDatasetTorch(Dataset):
 
 if __name__ == '__main__':
 
-    dataset_dir = '../dataset/RHD'
+    dataset_dir = '../../dataset/RHD'
 
     transforms = transforms.Compose([
             tr.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
@@ -541,7 +608,7 @@ if __name__ == '__main__':
     {'img_name': img_name,
                     'image': image, 'mask': mask, 'depth': depth,
                   'keypoint_uv': keypoint_uv, 'keypoint_vis': keypoint_vis,
-                  'kp_coord_xyz': keypoint_xyz, 'camera_matrix': camera_intrinsic_matrix}
+                  'keypoint_xyz': keypoint_xyz, 'camera_matrix': camera_intrinsic_matrix}
     '''
     
     
@@ -568,11 +635,11 @@ if __name__ == '__main__':
 
         keypoint_scale = batch['keypoint_scale']
         keypoint_xyz21_rel_normed = batch['keypoint_xyz21_rel_normed']
-        kp_coord_xyz_root = batch['kp_coord_xyz_root']
+        keypoint_xyz_root = batch['keypoint_xyz_root']
         hand_side = batch['hand_side']
-        print('img_name:', img_name)
+        # print('img_name:', img_name)
         # print('keypoints_xyz:', keypoints_xyz)
-        # print('kp_coord_uv:', keypoints_uv)
+        # print('keypoint_uv:', keypoints_uv)
         # print('keypoints_uv_visible:', keypoints_uv_visible)
     
         # print('keypoints_xyz.shape:', keypoints_xyz.shape) # torch.Size([BS, 42, 3])
@@ -592,11 +659,13 @@ if __name__ == '__main__':
         # print('keypoint_xyz21_rel_normed', keypoint_xyz21_rel_normed)
         # print('keypoint_uv21', keypoint_uv21)
         # print('keypoint_scale', keypoint_scale)
-        # print('kp_coord_xyz_root', kp_coord_xyz_root, kp_coord_xyz_root.shape)
+        # print('keypoint_xyz_root', keypoint_xyz_root, keypoint_xyz_root.shape)
         
-        print('images.shape:', images.shape) # torch.Size([BS, 3, 3])
-        print('image_crop.shape:', image_crop.shape) # torch.Size([BS, 3, 3])
+        # print('images.shape:', images.shape) # torch.Size([BS, 3, 3])
+        # print('image_crop.shape:', image_crop.shape) # torch.Size([BS, 3, 3])
         
         # break
         print(f'i: {i}\n')
         i += 1
+        if i > 28:
+            break
