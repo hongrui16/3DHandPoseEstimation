@@ -44,6 +44,51 @@ def batch_xyz_to_uv(xyz_batch, K):
     return uv
 
 
+def batch_project_xyz_to_uv(positions_xyz, camera_intrinsic_matrix):
+    """
+    Projects three-dimensional coordinates onto the image plane.
+
+    Args:
+        positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
+        camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
+    Returns:
+        The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
+    """
+    # print(f'positions_xyz.shape: {positions_xyz.shape}') #torch.Size([2, 21, 3]
+    # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
+    # print('positions_xyz[0]', positions_xyz[0])
+    
+
+    # bs, num_points, _ = positions_xyz.shape
+
+    # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
+    # Reshape to (bs, 3, num_points)
+    points_3d_reshaped = positions_xyz.permute(0, 2, 1)
+    # points_3d_reshaped shape is [bs, 3, num_points]
+
+
+    # Use batch matrix multiplication
+    # camera_intrinsic_matrix shape is [bs, 3, 3]
+    p = torch.bmm(camera_intrinsic_matrix, points_3d_reshaped)
+
+    # The shape of p should now be [bs, 3, num_points]
+
+    # Check if the last row of p has any zero values and replace with a small non-zero value to avoid dividing by zero
+    p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[ :, -1, :])
+    
+    # print(f'p.shape: {p.shape}') # should be [bs, num_points, 2]
+
+    #Normalize to get final 2D coordinates
+    #The shape becomes [bs, num_points, 2]
+    uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
+
+    # print(f'uv.shape: {uv.shape}') # should be [bs, num_points, 2]
+
+    # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
+    # uv = uv.t().view(bs, num_points, 2)
+    # print('uv[0]', uv[0])
+
+    return uv
 
 if __name__ == '__main__':
 
@@ -82,4 +127,5 @@ if __name__ == '__main__':
     print(uv)
 
 
-
+    b_uv = batch_project_xyz_to_uv(xyz.unsqueeze(0), intrinsic_matrix.unsqueeze(0))
+    print(b_uv)

@@ -17,14 +17,14 @@ class Diffusion3DHandPoseEstimation(torch.nn.Module):
     def __init__(self, device = 'cpu'):
         super(Diffusion3DHandPoseEstimation, self).__init__()
         self.device = device
-        self.resnet_model = ResNetFeatureExtractor()
+        self.resnet_extractor = ResNetFeatureExtractor(condition_feat_dim)
         self.diff_model = DiffusionJointEstimation()
         self.forward_kinematics_module = ForwardKinematics(device = device)
         self.bone_angle_pred_model = BoneAnglePrediction()
         self.bone_length_pred_model = BoneLengthPrediction()
     
     def resent_extracted_feature(self, img):
-        return self.resnet_model(img)
+        return self.resnet_extractor(img)
     
     def compute_diffusion_loss(self, pose_x0, resnet_features):
         '''
@@ -49,6 +49,6 @@ class Diffusion3DHandPoseEstimation(torch.nn.Module):
 
         diffusion_loss = self.compute_diffusion_loss(pose_x0, resnet_features)
         # refined_joint_coord ## [positions_xyz, positions_uv]
-        return refined_joint_coord, diffusion_loss, resnet_features
+        return refined_joint_coord, diffusion_loss
 
 

@@ -60,19 +60,20 @@ class ContrastiveLoss(nn.Module):
 
 
 class LossCalculation(nn.Module):
-    def __init__(self, device = 'cpu', loss_type = 'L2', uv_loss = True, contrastive_loss = False):
+    def __init__(self, device = 'cpu', loss_type = 'L2', comp_xyz_loss = True, comp_uv_loss = True, comp_contrastive_loss = False):
         super(LossCalculation, self).__init__()
         assert loss_type in ['L2', 'L2']
         self.device = device
         self.loss_type = loss_type
-        self.uv_loss = uv_loss
-        self.contrastive_loss = contrastive_loss
+        self.comp_xyz_loss = comp_xyz_loss
+        self.comp_uv_loss = comp_uv_loss
+        self.comp_contrastive_loss = comp_contrastive_loss
 
         if loss_type == 'L2':
             self.LossObj = L2Loss()
         else:
             self.LossObj = L1Loss()
-        if contrastive_loss:
+        if comp_contrastive_loss:
             self.ContrastiveLossObj = ContrastiveLoss()
 
     def compute_3d_coord_loss(self, pre_xyz, gt_xyz, keypoint_vis):
@@ -85,17 +86,20 @@ class LossCalculation(nn.Module):
         return self.ContrastiveLossObj(feat1, feat2, label)
     
     def forward(self, pre_xyz, gt_xyz, pre_uv, gt_uv, keypoint_vis, feat1 = None, feat2 = None, label = None):
-        loss_xyz = self.compute_3d_coord_loss(pre_xyz, gt_xyz, keypoint_vis)
+        if self.comp_xyz_loss:
+            loss_xyz = self.compute_3d_coord_loss(pre_xyz, gt_xyz, keypoint_vis)
+        else:
+            loss_xyz = torch.tensor(0)
 
-        if self.uv_loss:
+        if self.comp_uv_loss:
             loss_uv = self.compute_uv_coord_loss(pre_uv, gt_uv, keypoint_vis)
         else:
-            loss_uv = 0
+            loss_uv = torch.tensor(0)
 
-        if self.contrastive_loss:
+        if self.comp_contrastive_loss:
             loss_contrast = self.compute_contrastive_loss(feat1, feat2, label)
         else:
-            loss_contrast = 0
+            loss_contrast = torch.tensor(0)
         
         # loss = loss_xyz + loss_uv + loss_contrast
         return loss_xyz, loss_uv, loss_contrast

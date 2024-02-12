@@ -17,8 +17,8 @@ from config.config import *
 # from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimation
 # from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
 # from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
-
 from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
+from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
@@ -37,13 +37,21 @@ class Worker(object):
         else:
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
+        
+        assert model_name in ['DiffusionHandPose', 'TwoDimHandPose']
 
         self.device = device
-        
-        self.model = Diffusion3DHandPoseEstimation(device)
+
+        if model_name == 'TwoDimHandPose':
+            self.model = TwoDimHandPoseEstimation(device)
+            comp_xyz_loss = False
+        elif model_name == 'DiffusionHandPose':
+            self.model = Diffusion3DHandPoseEstimation(device)
+            comp_xyz_loss = True
+
         self.model.to(device)
             
-        self.criterion = LossCalculation(device=device)
+        self.criterion = LossCalculation(device=device, comp_xyz_loss = comp_xyz_loss)
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 
@@ -57,7 +65,7 @@ class Worker(object):
 
         log_dir = sorted(glob.glob(os.path.join(save_log_dir, dataset_name, 'run_*')), key=lambda x: int(x.split('_')[-1]))
         run_id = int(log_dir[-1].split('_')[-1]) + 1 if log_dir else 0
-        self.exp_dir = os.path.join(save_log_dir, dataset_name, f'run_{run_id:03d}')
+        self.exp_dir = os.path.join(save_log_dir, model_name, dataset_name, f'run_{run_id:03d}')
         os.makedirs(self.exp_dir, exist_ok=True)
 
         self.txtfile = os.path.join(self.exp_dir, 'log.txt')
@@ -159,22 +167,26 @@ class Worker(object):
 
             self.optimizer.zero_grad()
             if split == 'training':
-                refined_joint_coord, loss_diffusion, resnet_features = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
-                keypoint_xyz21_pred, keypoint_uv_pred = refined_joint_coord
+                refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
+                keypoint_xyz21_pred, keypoint_uv21_pred = refined_joint_coord
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    refined_joint_coord, loss_diffusion, resnet_features = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
-                    keypoint_xyz21_pred, keypoint_uv_pred = refined_joint_coord
-                    mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_vis21_gt)
+                    refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
+                    keypoint_xyz21_pred, keypoint_uv21_pred = refined_joint_coord
+                    if model_name == 'TwoDimHandPose':
+                        mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
+                    elif model_name == 'DiffusionHandPose':
+                        mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_vis21_gt)
             
             # print('keypoint_xyz21_gt[0]', keypoint_xyz21_gt[0])
             # print('keypoint_xyz21_pred[0]', keypoint_xyz21_pred[0])
             
             # print('keypoint_uv21_gt[0]', keypoint_uv21_gt[0])
-            # print('keypoint_uv_pred[0]', keypoint_uv_pred[0])
+            # print('keypoint_uv21_pred[0]', keypoint_uv21_pred[0])
+            # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
 
-            loss_xyz, loss_uv, loss_contrast = self.criterion(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_uv_pred, keypoint_uv21_gt, keypoint_vis21_gt) 
+            loss_xyz, loss_uv, loss_contrast = self.criterion(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt) 
             loss = loss_xyz + loss_uv/10000 + loss_contrast + loss_diffusion
             if split == 'training':
                 loss.backward()

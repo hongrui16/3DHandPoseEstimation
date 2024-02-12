@@ -7,12 +7,12 @@ import sys
 from config.config import *
 
 class ResNetFeatureExtractor(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, feat_dim):
         super(ResNetFeatureExtractor, self).__init__()
         resnet = models.resnet50(pretrained=True)
         self.resnet_backbone = torch.nn.Sequential(*(list(resnet.children())[:-1]))
 
-        self.fc = torch.nn.Linear(resnet.fc.in_features, condition_feat_dim)  # Decrease feature dimensionality
+        self.fc = torch.nn.Linear(resnet.fc.in_features, feat_dim)  # Decrease feature dimensionality
     
     def forward(self, x):
         x = self.resnet_backbone(x)
