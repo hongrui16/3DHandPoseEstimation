@@ -259,15 +259,6 @@ class RHD_HandKeypointsDataset(Dataset):
         # Invert the X-axis coordinates if it is the left hand
         keypoint_xyz21 = torch.where(hand_side == 0, torch.cat([-keypoint_xyz21[..., :1], keypoint_xyz21[..., 1:]], dim=-1), keypoint_xyz21)
         data_dict['keypoint_xyz21'] = keypoint_xyz21
-        if img_name == '00028.png':
-            # print('2 keypoint_xyz21', keypoint_xyz21)
-
-            # ori_uv = camera_xyz_to_uv(keypoint_xyz, camera_intrinsic_matrix)
-            # print(f'ori_uv: {ori_uv}')
-            # print(f'keypoint_uv: {keypoint_uv}')
-            # pro_uv21 = camera_xyz_to_uv(keypoint_xyz21, camera_intrinsic_matrix)
-            # print(f'pro_uv21: {pro_uv21}')
-            pass
 
         # Make coords relative to root joint
         keypoint_xyz_root = keypoint_xyz21[0, :]  # this is the palm coord
@@ -663,9 +654,12 @@ if __name__ == '__main__':
         
         # print('images.shape:', images.shape) # torch.Size([BS, 3, 3])
         # print('image_crop.shape:', image_crop.shape) # torch.Size([BS, 3, 3])
+        new_pro_uv21 = camera_xyz_to_uv(keypoint_xyz21.squeeze(0), camera_matrices.squeeze(0))
+        plot_uv_on_image(new_pro_uv21.numpy(), (255*(0.5+image_crop.squeeze(0).permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis21.squeeze(0).numpy().squeeze())
+            
         
         # break
         print(f'i: {i}\n')
         i += 1
-        if i > 28:
+        if i > 8:
             break
