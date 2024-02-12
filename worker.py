@@ -52,8 +52,8 @@ class Worker(object):
         if dataset_name == 'RHD':
             train_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='training')
             val_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='evaluation')
-        self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=10)
-        self.val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=10)
+        self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=15)
+        self.val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=15)
 
         log_dir = sorted(glob.glob(os.path.join(save_log_dir, dataset_name, 'run_*')), key=lambda x: int(x.split('_')[-1]))
         run_id = int(log_dir[-1].split('_')[-1]) + 1 if log_dir else 0
@@ -142,7 +142,7 @@ class Worker(object):
             
             keypoint_vis21_gt = sample['keypoint_vis21'].to(self.device) # visiable points mask
             index_root_bone_length = sample['keypoint_scale'].to(self.device) #scale length
-            kp_coord_xyz_root = sample['kp_coord_xyz_root'].to(self.device)
+            keypoint_xyz_root = sample['keypoint_xyz_root'].to(self.device)
             keypoint_uv21_gt = sample['keypoint_uv21'].to(self.device) # uv coordinate
             keypoint_xyz21_gt = sample['keypoint_xyz21'].to(self.device) # xyz absolute coordinate
             keypoint_xyz21_rel_normed_gt = sample['keypoint_xyz21_rel_normed'].to(self.device) ## normalized xyz coordinates
@@ -159,12 +159,12 @@ class Worker(object):
 
             self.optimizer.zero_grad()
             if split == 'training':
-                refined_joint_coord, loss_diffusion, resnet_features = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, kp_coord_xyz_root)
+                refined_joint_coord, loss_diffusion, resnet_features = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
                 keypoint_xyz21_pred, keypoint_uv_pred = refined_joint_coord
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    refined_joint_coord, loss_diffusion, resnet_features = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, kp_coord_xyz_root)
+                    refined_joint_coord, loss_diffusion, resnet_features = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
                     keypoint_xyz21_pred, keypoint_uv_pred = refined_joint_coord
                     mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_vis21_gt)
             

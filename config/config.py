@@ -1,4 +1,4 @@
-dataset_root_dir = 'dataset/RHD'
+dataset_root_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
 save_log_dir = 'logs'
 dataset_name = 'RHD'
 
@@ -14,7 +14,7 @@ num_timesteps = 400
 num_sampling_timesteps = 200
 keypoint_feat_Ch = 1
 keypoint_num = 21
-batch_size = 360
+batch_size = 480
 bone_length_num = 20
 other_joint_angles_num = 23
 

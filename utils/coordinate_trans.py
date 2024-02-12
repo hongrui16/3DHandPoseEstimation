@@ -15,7 +15,8 @@ def camera_xyz_to_uv(xyz, intrinsic_matrix):
         A tensor of 2D coordinates, shape (N, 2).
     """
 
-
+    # print(f'xyz.shape: {xyz.shape}')
+    # print(f'intrinsic_matrix.shape: {intrinsic_matrix.shape}')
     uvw = torch.matmul(xyz, intrinsic_matrix.t())
     # print('uvw\n', uvw)
 

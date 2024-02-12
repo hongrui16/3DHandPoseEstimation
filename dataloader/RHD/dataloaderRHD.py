@@ -336,7 +336,7 @@ class RHD_HandKeypointsDataset(Dataset):
             if valid_keypoints.shape[0] > 0:  # Check if there are any valid keypoints
                 crop_center = valid_keypoints.mean(dim=0)
             else:
-                crop_center = torch.tensor([0.0, 0.0])  # Default or fallback value if no valid keypoints
+                crop_center = torch.tensor([self.crop_size/2, self.crop_size/2])  # Default or fallback value if no valid keypoints
 
             crop_center_flipped = crop_center[[1, 0]]  # Flip dimensions to match the original request
 
@@ -359,8 +359,12 @@ class RHD_HandKeypointsDataset(Dataset):
 
 
             # determine size of crop (measure spatial extend of hw coords first)
-            min_coord = torch.maximum(torch.min(keypoint_hw, dim=0)[0], torch.tensor(0.0))
-            max_coord = torch.minimum(torch.max(keypoint_hw, dim=0)[0], torch.tensor(self.image_size))
+            if keypoint_hw.nelement() == 0:
+                min_coord = torch.tensor(0.0)
+                max_coord = torch.tensor(self.image_size)
+            else:
+                min_coord = torch.maximum(torch.min(keypoint_hw, dim=0)[0], torch.tensor(0.0))
+                max_coord = torch.minimum(torch.max(keypoint_hw, dim=0)[0], torch.tensor(self.image_size))
             # print(f'min_coord: {min_coord}, max_coord: {max_coord}')
             # find out larger distance wrt the center of crop
             crop_size_best = 2 * torch.maximum(max_coord - crop_center, crop_center - min_coord) + 20 ### here, 20 is for margin
@@ -584,17 +588,31 @@ class RHD_HandKeypointsDataset(Dataset):
 
 if __name__ == '__main__':
 
-    dataset_dir = '../../dataset/RHD'
-
+    # dataset_dir = '../../dataset/RHD'
+    dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+    num_workers = 15
+    batch_size=480
+    gpu_index = None
+    cuda_valid = torch.cuda.is_available()
+    if cuda_valid:
+        print(f"CUDA is available, using GPU {gpu_index}")
+        if gpu_index is None:
+            device = torch.device(f"cuda")
+        else:
+            device = torch.device(f"cuda:{gpu_index}")
+    else:
+        print("CUDA is unavailable, using CPU")
+        device = torch.device("cpu")
     transforms = transforms.Compose([
             tr.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
             tr.ToTensor()])
 
     # Creating the dataset
-    dataset = RHD_HandKeypointsDataset(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
+    # dataset = RHD_HandKeypointsDataset(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
+    dataset = RHD_HandKeypointsDataset(root_dir=dataset_dir, set_type='training', transform=transforms, debug=False)
 
     # Creating the DataLoader
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers = 1)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers = num_workers)
     '''
     {'img_name': img_name,
                     'image': image, 'mask': mask, 'depth': depth,
@@ -654,12 +672,15 @@ if __name__ == '__main__':
         
         # print('images.shape:', images.shape) # torch.Size([BS, 3, 3])
         # print('image_crop.shape:', image_crop.shape) # torch.Size([BS, 3, 3])
-        new_pro_uv21 = camera_xyz_to_uv(keypoint_xyz21.squeeze(0), camera_matrices.squeeze(0))
-        plot_uv_on_image(new_pro_uv21.numpy(), (255*(0.5+image_crop.squeeze(0).permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis21.squeeze(0).numpy().squeeze())
-            
+        print('keypoint_xyz21.shape',keypoint_xyz21.shape)
+        new_pro_uv21 = camera_xyz_to_uv(keypoint_xyz21[0], camera_matrices[0])
+        print('new_pro_uv21.shape',new_pro_uv21.shape)
+        # plot_uv_on_image(new_pro_uv21.numpy(), (255*(0.5+image_crop[0].permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis21[0].numpy().squeeze())
+        print('keypoint_uv21[0,:3]',keypoint_uv21[0,:3])
+        print('new_pro_uv21[:3]',new_pro_uv21[:3])
         
         # break
         print(f'i: {i}\n')
         i += 1
-        if i > 8:
-            break
+        # if i > 8:
+        #     break
