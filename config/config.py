@@ -23,10 +23,12 @@ max_epoch = 100
 # resume_weight_path = 'logs/RHD/run_000/DF_model_best.pth.tar'
 resume_weight_path = None
 finetune = False
+batch_size = 480
 
 ## model parameters
-model_name = 'TwoDimHandPose'
+# model_name = 'TwoDimHandPose'
 # model_name = 'DiffusionHandPose'
+model_name = 'ThreeDimHandPose'
 
 ## general parameters
 keypoint_num = 21
@@ -37,7 +39,6 @@ condition_feat_dim = 256
 num_timesteps = 400
 num_sampling_timesteps = 200
 keypoint_feat_Ch = 1
-batch_size = 480
 bone_length_num = 20
 other_joint_angles_num = 23
 
