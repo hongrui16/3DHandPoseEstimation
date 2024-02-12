@@ -72,7 +72,7 @@ def plot_mask_on_image(hand_map_l, hand_map_r, image):
 
 
 
-class RHD_HandKeypointsDatasetTorch(Dataset):
+class RHD_HandKeypointsDataset(Dataset):
     def __init__(self, root_dir, set_type='training', transform=None, debug = False, device = 'cpu'):
         assert set_type in ['evaluation', 'training']
 
@@ -600,7 +600,7 @@ if __name__ == '__main__':
             tr.ToTensor()])
 
     # Creating the dataset
-    dataset = RHD_HandKeypointsDatasetTorch(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
+    dataset = RHD_HandKeypointsDataset(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
 
     # Creating the DataLoader
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers = 1)

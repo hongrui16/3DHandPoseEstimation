@@ -20,7 +20,6 @@ from config.config import *
 
 from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
-from dataloader.RHD.dataloaderRHD_Torch import RHD_HandKeypointsDatasetTorch
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
@@ -51,11 +50,8 @@ class Worker(object):
         self.metric_mpjpe = MPJPE()
 
         if dataset_name == 'RHD':
-            # train_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='training')
-            # val_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='evaluation')
-
-            train_set = RHD_HandKeypointsDatasetTorch(root_dir=dataset_root_dir, set_type='training')
-            val_set = RHD_HandKeypointsDatasetTorch(root_dir=dataset_root_dir, set_type='evaluation')
+            train_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='training')
+            val_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='evaluation')
         self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=10)
         self.val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=10)
 
