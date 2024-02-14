@@ -16,60 +16,11 @@ sys.path.append('../..')
 
 from config.config import *
 from utils import transformations as tr
-
+from utils.plot_anno import *
 from utils.general_torch import crop_image_from_xy_torch
 # from utils.canonical_trafo import canonical_trafo, flip_right_hand
 from utils.relative_trafo_torch import bone_rel_trafo
 from utils.coordinate_trans import camera_xyz_to_uv
-
-def plot_uv_on_image(keypoints_uv, image, keypoints_vis = None, horizon_flip = False):
-    # print(f'keypoints_vis.shape: {keypoints_vis.shape}')
-    # Adjust keypoints to ensure they are within the image boundaries of 320x320
-    if not keypoints_vis is None:
-        keypoints_uv = keypoints_uv[keypoints_vis]
-    
-    if horizon_flip:
-        image = image[:,::-1]
-        h, w, _ = image.shape
-        keypoints_uv[:, 0] = w - keypoints_uv[:, 0]
-
-    # Re-plot the keypoints on the image, this time ensuring they are within the image boundaries
-    plt.figure(figsize=(6, 6))
-    plt.imshow(image)
-    plt.scatter(keypoints_uv[:, 0], keypoints_uv[:, 1], c='red', s=10)  # plot keypoints in red
-    plt.axis('on')  # remove axes for better visualization
-    plt.show()
-
-
-def plot_mask_on_image(hand_map_l, hand_map_r, image):
-    # Convert binary masks to RGB color masks
-    hand_mask_l_color = np.zeros((hand_map_l.shape[0], hand_map_l.shape[1], 3), dtype=np.uint8)
-    hand_mask_r_color = np.zeros((hand_map_r.shape[0], hand_map_r.shape[1], 3), dtype=np.uint8)
-
-    hand_mask_l_color[hand_map_l.numpy() == 1] = [255, 0, 0]  # Red for left hand
-    hand_mask_r_color[hand_map_r.numpy() == 1] = [0, 255, 0]  # Green for right hand
-
-    # Overlay color masks on the original image
-    overlay_image = image.copy()
-    overlay_image[hand_mask_l_color[:, :, 0] == 255] = hand_mask_l_color[hand_mask_l_color[:, :, 0] == 255]
-    overlay_image[hand_mask_r_color[:, :, 1] == 255] = hand_mask_r_color[hand_mask_r_color[:, :, 1] == 255]
-
-    # Display the result
-    plt.figure(figsize=(6, 6))
-    plt.imshow(overlay_image)
-    plt.axis('on')
-
-    # Calculate centroids and add text labels for left and right hand masks
-    l_y, l_x = np.where(hand_map_l.numpy() == 1)
-    if len(l_x) > 0 and len(l_y) > 0:  # Check if left hand mask exists
-        plt.text(l_x.mean(), l_y.mean(), 'Left', color='white', fontsize=12, ha='center', va='center')
-
-    r_y, r_x = np.where(hand_map_r.numpy() == 1)
-    if len(r_x) > 0 and len(r_y) > 0:  # Check if right hand mask exists
-        plt.text(r_x.mean(), r_y.mean(), 'Right', color='white', fontsize=12, ha='center', va='center')
-
-    plt.show()
-
 
 
 class RHD_HandKeypointsDataset(Dataset):
@@ -646,7 +597,7 @@ if __name__ == '__main__':
         keypoint_xyz21_rel_normed = batch['keypoint_xyz21_rel_normed']
         keypoint_xyz_root = batch['keypoint_xyz_root']
         hand_side = batch['hand_side']
-        # print('img_name:', img_name)
+        print('img_name:', img_name)
         # print('keypoints_xyz:', keypoints_xyz)
         # print('keypoint_uv:', keypoints_uv)
         # print('keypoints_uv_visible:', keypoints_uv_visible)
@@ -682,5 +633,5 @@ if __name__ == '__main__':
         # break
         print(f'i: {i}\n')
         i += 1
-        # if i > 8:
-        #     break
+        if i > 8:
+            break

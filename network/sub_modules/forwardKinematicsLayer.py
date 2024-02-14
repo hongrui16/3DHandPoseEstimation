@@ -158,12 +158,332 @@ class ForwardKinematics(nn.Module):
 
         nodes = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'C4', 'D1', 'D2', 'D3', 'D4', 'E1', 'E2', 'E3', 'E4']
 
-                                            wrist(root)
-                                                |
-        ---------------------------------------------------------------------------------
-        |                   |                   |                   |                   |
-        v                   v                   v                   v                   v
-        A1-->A2-->A3-->A4   B1-->B2-->B3-->B4   C1-->C2-->C3-->C4   D1-->D2-->D3-->D4   E1-->E2-->E3-->E4
+                wrist(root)
+                    |
+        --------------------------
+        A1    B1    C1    D1    E1
+        |     |     |     |     |
+        v     v     v     v     v
+        A2    B2    C2    D2    E2
+        |     |     |     |     |
+        v     v     v     v     v
+        A3    B3    C3    D3    E3
+        |     |     |     |     |
+        v     v     v     v     v
+        A4    B4    C4    D4    E4
+
+        A: thumb
+        B：index
+        C：middle 
+        D：ring 
+        E: pinky
+        
+        root_angles: 
+            size: B*3
+            three angles of root (previous MLP prediction, x y z direction rotation angle)
+        other_angles: 
+            size: B*23
+            There are 23 other_angles in total, from *1 to *3, * represents A, B, C, D, E, the order is from 1~3, from A~E.
+            
+            ## thumb
+            other_angles[0:3] is the three rotation angles of A1 in the x y z direction, A1, 
+            other_angles[3:6] is the three rotation angles of A2 in the x y z direction, A2, 
+            other_angles[6] is a rotation angle in the Y direction of A3, 
+
+            ## other fingers
+            other_angles[7:9] is the two rotation angles of B1 in the x and Y directions
+            other_angles[9] is a rotation angle in the x direction of B2
+            other_angles[10] is a rotation angle in the x direction of B3
+            C/D/E, all *1 have two rotation angles in the x and z directions, *2, *3 only have one rotation angle in the x direction
+
+        bone_lengths:
+            size: B*20
+            There are 20 bone_length in total, which is the edge length of the graph, from root-A1, A1-A2, A2-A3, A3-A4, root-B1, B1-B2 in this order
+        '''
+
+        # Check if camera_intrinsic_matrix is a Tensor
+        assert isinstance(camera_intrinsic_matrix, torch.Tensor)
+            # # If it is not a Tensor, convert it to a Tensor and put it on the device
+            # camera_intrinsic_matrix = torch.tensor(camera_intrinsic_matrix, dtype=torch.float32, device=self.device)
+
+        self.camera_intrinsic_matrix = camera_intrinsic_matrix
+        # print(f"root_angles is on device: {root_angles.device}") #device: cpu
+
+        bs, num_points = bone_lengths.shape       
+        positions_xyz = torch.zeros(bs, 1, 3, device=self.device)  # root xyz position
+        rotations = get_right_hand_batch_rotation_matrix(root_angles, self.device) 
+        # print(f'rotations.shape', rotations.shape) # # torch.Size([bs, 3, 3])
+        rotations = rotations.unsqueeze(dim=1)
+        # print(f'rotations.shape', rotations.shape) # # torch.Size([bs, 1, 3, 3])
+
+        # Define the sequence of nodes
+        nodes = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'C4', 'D1', 'D2', 'D3', 'D4', 'E1', 'E2', 'E3', 'E4']
+        angle_idx = 0
+        # print('bone_lengths.shape', bone_lengths.shape)
+        for i, node in enumerate(nodes):
+            if i % 4 == 0:  # First joint of each finger
+                parent_rotation = rotations[:, 0]
+                parent_position = positions_xyz[:, 0]
+            else:
+                parent_rotation = rotations[:, i]
+                parent_position = positions_xyz[:, i]
+            
+            # Get the current bone length
+            bone_length = bone_lengths[:, i]
+
+            # print(f"other_angles is on device: {other_angles.device}") #device: cpu
+            # print(f"parent_rotation is on device: {parent_rotation.device}") #device: cpu
+            # print(f"positions_xyz is on device: {positions_xyz.device}") #device: cpu
+
+            if node.startswith('A'):
+                ## finger = 'thumb'
+                # Get the rotation for the current node
+                if node.endswith('1') or node.endswith('2'):  # First joint of each finger, has x, y, z rotation angles
+                    joint_angles = other_angles[:, angle_idx:angle_idx+3]
+                    joint_local_rotation = get_right_hand_batch_rotation_matrix(joint_angles, self.device)
+                    angle_idx += 3                
+                elif node.endswith('3'):  # Second and third joint of each finger, has only Y rotation angle
+                    joint_angles = torch.zeros((joint_angles.shape[0], 3), device=self.device)
+                    joint_angles[:, 1] = other_angles[:, angle_idx]
+                    # print(f'joint_angles.shape: {joint_angles.shape}') ##  torch.Size([bs, 3])
+                    joint_local_rotation = get_right_hand_batch_rotation_matrix(joint_angles, self.device)
+                    angle_idx += 1
+                else:
+                    # elif node.endswith('4'):  # Tip of the finger, has no rotation of its own
+                    joint_local_rotation = torch.stack([torch.eye(3, device=self.device) for _ in range(bs)])
+                    # print(f'joint_local_rotation.shape: {joint_local_rotation.shape}') ##  torch.Size([bs, 3, 3])
+
+            else:
+                ## finger = 'others'
+                # Get the rotation for the current node
+                if node.endswith('1'):  # First joint of each finger, has x, y rotation angles
+                    joint_angles = torch.zeros((joint_angles.shape[0], 3), device=self.device)
+                    joint_angles[:, 0] = other_angles[:, angle_idx] # x angles
+                    joint_angles[:, 1] = other_angles[:, angle_idx+1] # Y angles
+                    joint_local_rotation = get_right_hand_batch_rotation_matrix(joint_angles, self.device)
+                    angle_idx += 2
+                
+                elif not node.endswith('4'):  # Second and third joint of each finger, has only x rotation angle
+                    joint_angles = torch.zeros((joint_angles.shape[0], 3), device=self.device)
+                    joint_angles[:, 0] = other_angles[:, angle_idx]
+                    joint_local_rotation = get_right_hand_batch_rotation_matrix(joint_angles, self.device)
+                    angle_idx += 1
+                else:
+                    # elif node.endswith('4'):  # Tip of the finger, has no rotation of its own
+                    joint_local_rotation = torch.stack([torch.eye(3, device=self.device) for _ in range(bs)])
+            # print(f'joint_local_rotation.shape', joint_local_rotation.shape) # torch.Size([bs, 3，3])
+            # print(f'node: {node}')
+            # print(f'joint_local_rotation: {joint_local_rotation}')
+            # print(f'parent_rotation: {parent_rotation}')
+            # print(f'parent_rotation.shape', parent_rotation.shape) # torch.Size([bs, 3, 3])
+            # print(f'joint_local_rotation.shape', joint_local_rotation.shape) # torch.Size([bs, 3, 3])
+                    
+            # print(f"parent_rotation is on device: {parent_rotation.device}") #device: cpu
+            # print(f"joint_local_rotation is on device: {joint_local_rotation.device}") #device: cpu
+
+            # Calculate the global rotation for the current node
+            joint_global_rotation = parent_rotation @ joint_local_rotation
+            # print(f'joint_global_rotation.shape', joint_global_rotation.shape) # torch.Size([bs, 3, 3])
+            # print('-')
+            #### Calculate the global position for the current node
+            joint_offset = torch.zeros(bs, 3, device=self.device)
+            # print(f'bone_length.shape', bone_length.shape) # torch.Size([bs])
+            joint_offset[:, 2] = bone_length
+            # print(f'joint_offset.shape', joint_offset.shape) # torch.Size([bs, 3])
+
+            joint_offset = joint_offset.unsqueeze(1)
+            # print(f'joint_offset.shape', joint_offset.shape) # torch.Size([bs, 1, 3])
+
+            joint_offset = joint_offset.transpose(1, 2)
+            # print(f'joint_offset.shape', joint_offset.shape) # torch.Size([bs, 3, 1])
+
+            # print(f"joint_global_rotation is on device: {joint_global_rotation.device}") #device: cpu
+            # print(f"joint_offset is on device: {joint_offset.device}") #cuda:0
+
+            # Calculate the global position for the current node using batch matrix multiplication
+            offset = torch.bmm(joint_global_rotation, joint_offset)
+            # print(f'offset.shape', offset.shape) # torch.Size([bs, 3, 1])
+
+            global_position = parent_position + offset.squeeze()
+            # print(f'global_position.shape', global_position.shape) # torch.Size([bs, 3])
+
+
+            # Store the global rotation and position
+            rotations = torch.cat([rotations, joint_global_rotation.unsqueeze(1)], dim=1)
+            # print(f'rotations.shape', rotations.shape) # torch.Size([bs, num_joint, 3, 3])
+
+            positions_xyz = torch.cat([positions_xyz, global_position.unsqueeze(1)], dim=1)
+            # print(f'positions_xyz.shape', positions_xyz.shape) # torch.Size([bs, num_joint, 3])
+
+
+        # print(f'positions_xyz.shape', positions_xyz.shape) # torch.Size([bs, 21, 3])
+        kp_coord_xyz21_absolute = self.convert_rel_normalized_to_absolute(positions_xyz, index_root_bone_length, kp_coord_xyz_root)
+        # print(f'kp_coord_xyz21_absolute.shape', kp_coord_xyz21_absolute.shape) # torch.Size([bs, 21, 3])
+
+
+        for i in range(1, 21, 4):
+            kp_coord_xyz21_absolute[:,[i, i + 3]] = kp_coord_xyz21_absolute[:,[i + 3, i]]
+            kp_coord_xyz21_absolute[:,[i + 1, i + 2]] = kp_coord_xyz21_absolute[:,[i + 2, i + 1]]
+
+        kp_coord_uv21 = self.project_xyz_to_uv(kp_coord_xyz21_absolute, self.camera_intrinsic_matrix)
+        return [kp_coord_xyz21_absolute, kp_coord_uv21]
+    
+
+    def convert_rel_normalized_to_absolute(self, kp_coord_xyz21_rel_normed, index_root_bone_length, kp_coord_xyz_root):
+        """
+        Args:
+            kp_coord_xyz21_rel_normed: Three-dimensional coordinates, shape (batch_size, num_points, 3).
+            index_root_bone_length,  shape (batch_size, 1).
+            kp_coord_xyz_root,  shape (batch_size, 3).
+        Returns:
+            The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
+        """
+        # Zoom positions_xyz
+        index_root_bone_length_expanded = index_root_bone_length.unsqueeze(-1) # [batch_size, 1, 1]
+        positions_xyz_scaled = kp_coord_xyz21_rel_normed * index_root_bone_length_expanded # [batch_size, num_points, 3]
+
+        # Adjust the shape of kp_coord_xyz_root to facilitate addition operations
+        kp_coord_xyz_root_expanded = kp_coord_xyz_root.unsqueeze(1) # [batch_size, 1, 3]
+
+        # Add scaled positions_xyz_scaled to kp_coord_xyz_root
+        positions_xyz_absloute = positions_xyz_scaled + kp_coord_xyz_root_expanded # [batch_size, num_points, 3]
+
+        # If necessary, dimension exchange can be performed here
+        # positions_xyz_final = positions_xyz_abslute.permute(0, 2, 1) # [batch_size, 3, num_points]
+        return positions_xyz_absloute
+
+    def project(self, positions_xyz, camera_intrinsic_matrix, index_root_bone_length):
+        """
+        Projects three-dimensional coordinates onto the image plane.
+
+        Args:
+            positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
+            camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
+            index_root_bone_length,  shape (batch_size, 1).
+            kp_coord_xyz_root,  shape (batch_size, 3).
+        Returns:
+            The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
+        """
+        # print(f'positions_xyz.shape: {positions_xyz.shape}') #torch.Size([2, 21, 3]
+        # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
+        # print('positions_xyz[0]', positions_xyz[0])
+        
+
+        # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
+        # Reshape to (bs, 3, num_points)
+        points_3d_reshaped = positions_xyz.permute(0, 2, 1)
+        # points_3d_reshaped shape is [bs, 3, num_points]
+
+        index_root_bone_length_expanded = index_root_bone_length.unsqueeze(2)
+        points_3d_reshaped = points_3d_reshaped * index_root_bone_length_expanded
+
+
+        # Use batch matrix multiplication
+        # camera_intrinsic_matrix shape is [bs, 3, 3]
+        p = torch.bmm(camera_intrinsic_matrix, points_3d_reshaped)
+
+        # The shape of p should now be [bs, 3, num_points]
+
+        # Check if the last row of p has any zero values and replace with a small non-zero value to avoid dividing by zero
+        p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[ :, -1, :])
+        
+        # print(f'p.shape: {p.shape}') # should be [bs, num_points, 2]
+
+        #Normalize to get final 2D coordinates
+        #The shape becomes [bs, num_points, 2]
+        uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
+
+        # print(f'uv.shape: {uv.shape}') # should be [bs, num_points, 2]
+
+        # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
+        # uv = uv.t().view(bs, num_points, 2)
+        # print('uv[0]', uv[0])
+
+        return uv
+
+    def project_xyz_to_uv(self, positions_xyz, camera_intrinsic_matrix):
+        """
+        Projects three-dimensional coordinates onto the image plane.
+
+        Args:
+            positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
+            camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
+        Returns:
+            The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
+        """
+        # print(f'positions_xyz.shape: {positions_xyz.shape}') #torch.Size([2, 21, 3]
+        # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
+        # print('positions_xyz[0]', positions_xyz[0])
+        
+
+        # bs, num_points, _ = positions_xyz.shape
+
+        # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
+        # Reshape to (bs, 3, num_points)
+        points_3d_reshaped = positions_xyz.permute(0, 2, 1)
+        # points_3d_reshaped shape is [bs, 3, num_points]
+
+
+        # Use batch matrix multiplication
+        # camera_intrinsic_matrix shape is [bs, 3, 3]
+        p = torch.bmm(camera_intrinsic_matrix, points_3d_reshaped)
+
+        # The shape of p should now be [bs, 3, num_points]
+
+        # Check if the last row of p has any zero values and replace with a small non-zero value to avoid dividing by zero
+        p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[ :, -1, :])
+        
+        # print(f'p.shape: {p.shape}') # should be [bs, num_points, 2]
+
+        #Normalize to get final 2D coordinates
+        #The shape becomes [bs, num_points, 2]
+        uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
+
+        # print(f'uv.shape: {uv.shape}') # should be [bs, num_points, 2]
+
+        # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
+        # uv = uv.t().view(bs, num_points, 2)
+        # print('uv[0]', uv[0])
+
+        return uv
+
+
+
+class ForwardKinematicsMatchGTOrder(nn.Module):
+    def __init__(self, device = 'cpu'):
+        super(ForwardKinematics, self).__init__()
+        self.device = device
+    
+    
+
+    def forward(self, root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root):
+        '''
+        right hand coordinate system, all angles are radian.
+        X-axis: Points in the direction of your thumb, horizontally to the right.
+        Y-axis: perpendicular to the direction of the palm, upward.
+        Z-axis: Points in the direction of the tip of the middle finger, forward.
+
+        
+        If the middle finger is bent 10 degrees downward, it is a rotation around the X-axis
+        The expansion/merging of the index finger (Abduction/Adduction) is performed around the Y-axis.
+        If the entire palm rotates about the direction of the tip of the middle finger (i.e. the Z-axis), then this is a rotation about the Z-axis.
+
+        nodes = ['A4', 'A3', 'A2', 'A1', 'B4', 'B3', 'B2', 'B1', 'C4', 'C3', 'C2', 'C1', 'D4', 'D3', 'D2', 'D1', 'E4', 'E3', 'E2', 'E1']
+
+                wrist(root)
+                    |
+        --------------------------
+        A1    B1    C1    D1    E1
+        |     |     |     |     |
+        v     v     v     v     v
+        A2    B2    C2    D2    E2
+        |     |     |     |     |
+        v     v     v     v     v
+        A3    B3    C3    D3    E3
+        |     |     |     |     |
+        v     v     v     v     v
+        A4    B4    C4    D4    E4
+
 
         A: thumb
         B：index
@@ -360,8 +680,6 @@ class ForwardKinematics(nn.Module):
         # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
         # print('positions_xyz[0]', positions_xyz[0])
         
-
-        bs, num_points, _ = positions_xyz.shape
 
         # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
         # Reshape to (bs, 3, num_points)

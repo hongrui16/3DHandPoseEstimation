@@ -19,7 +19,7 @@ from config.config import *
 # from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
 from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
 from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation
-from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation
+from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
@@ -40,7 +40,7 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose']
+        assert model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose']
 
         self.device = device
 
@@ -53,7 +53,10 @@ class Worker(object):
         elif model_name == 'ThreeDimHandPose':
             self.model = ThreeDimHandPoseEstimation(device)
             comp_xyz_loss = True
-            
+        elif model_name == 'OnlyThreeDimHandPose':
+            self.model = OnlyThreeDimHandPoseEstimation(device)
+            comp_xyz_loss = True 
+        
 
         self.model.to(device)
             
@@ -182,7 +185,8 @@ class Worker(object):
                     keypoint_xyz21_pred, keypoint_uv21_pred = refined_joint_coord
                     if model_name == 'TwoDimHandPose':
                         mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
-                    elif model_name == 'DiffusionHandPose' or model_name == 'ThreeDimHandPose':
+                    else:
+                        # elif model_name == 'DiffusionHandPose' or model_name == 'ThreeDimHandPose':
                         mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_vis21_gt)
             
             # print('keypoint_xyz21_gt[0]', keypoint_xyz21_gt[0])
@@ -277,7 +281,7 @@ if __name__ == '__main__':
     # fast_debug = True
     fast_debug = False
     gpu_idx = 0
-    # gpu_idx = None
+    gpu_idx = None
     worker = Worker(gpu_idx)
     worker.forward(fast_debug)
 

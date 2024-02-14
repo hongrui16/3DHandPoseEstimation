@@ -20,15 +20,21 @@ calculate_scoremap=False
 ## training parameters
 save_log_dir = 'logs'
 max_epoch = 100
-# resume_weight_path = 'logs/RHD/run_000/DF_model_best.pth.tar'
 resume_weight_path = None
 finetune = False
 batch_size = 480
+
+## inference parameters
+# resume_weight_path = 'logs/TwoDimHandPose/RHD/run_000/DF_model_best.pth.tar'
+resume_weight_path = 'logs/ThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
+# resume_weight_path = 'logs/OnlyThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
+infer_batch_size = 100
 
 ## model parameters
 # model_name = 'TwoDimHandPose'
 # model_name = 'DiffusionHandPose'
 model_name = 'ThreeDimHandPose'
+# model_name = 'OnlyThreeDimHandPose'
 
 ## general parameters
 keypoint_num = 21

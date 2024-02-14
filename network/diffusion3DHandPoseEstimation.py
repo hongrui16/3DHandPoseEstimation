@@ -23,9 +23,6 @@ class Diffusion3DHandPoseEstimation(torch.nn.Module):
         self.bone_angle_pred_model = BoneAnglePrediction()
         self.bone_length_pred_model = BoneLengthPrediction()
     
-    def resent_extracted_feature(self, img):
-        return self.resnet_extractor(img)
-    
     def compute_diffusion_loss(self, pose_x0, resnet_features):
         '''
             pose_x0: groundtruth xyz coordinates
@@ -41,7 +38,7 @@ class Diffusion3DHandPoseEstimation(torch.nn.Module):
         return coarse_joint_coord
     
     def forward(self, img, camera_intrinsic_matrix, pose_x0, index_root_bone_length, kp_coord_xyz_root):
-        resnet_features = self.resent_extracted_feature(img)
+        resnet_features = self.resnet_extractor(img)
         coarse_joint_coord = self.joint_coord_by_diffusion(resnet_features)
         root_angles, other_angles = self.bone_angle_pred_model(coarse_joint_coord)
         bone_lengths = self.bone_length_pred_model(coarse_joint_coord)

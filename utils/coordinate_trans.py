@@ -126,6 +126,34 @@ if __name__ == '__main__':
     uv = camera_xyz_to_uv(xyz, intrinsic_matrix)
     print(uv)
 
-
-    b_uv = batch_project_xyz_to_uv(xyz.unsqueeze(0), intrinsic_matrix.unsqueeze(0))
+    batch_intrinsic_matrix = torch.tensor([
+                                        [
+                                            [320, 0.0000, 160.0000],
+                                            [0.0000, 320, 160.0000],
+                                            [0.0000, 0.0000, 1.0000]
+                                        ],
+                                        [
+                                            [320, 0.0000, 160.0000],
+                                            [0.0000, 320, 160.0000],
+                                            [0.0000, 0.0000, 1.0000]
+                                        ]
+                                    ]
+                                    )
+    
+    batch_xyz = torch.tensor(
+        [
+            [
+                [ 0.5, -0.5,  1],
+                [ 1,  1,  2],
+                [ 0.0206,  0.0136,  0.6067]
+            ],
+            [
+                [ 0.5, -0.5,  1],
+                [ 1,  1,  2],
+                [ 0.0206,  0.0136,  0.6067]
+            ]
+        ]
+    )
+        
+    b_uv = batch_project_xyz_to_uv(batch_xyz, batch_intrinsic_matrix)
     print(b_uv)

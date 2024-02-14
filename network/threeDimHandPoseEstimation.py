@@ -9,6 +9,7 @@ from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimatio
 from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
 from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
 from network.sub_modules.bonePrediction import BoneAnglePrediction, BoneLengthPrediction
+from utils.coordinate_trans import batch_project_xyz_to_uv
 
 
 
@@ -44,3 +45,30 @@ class ThreeDimHandPoseEstimation(torch.nn.Module):
         return refined_joint_coord, torch.tensor(0)
 
 
+
+class OnlyThreeDimHandPoseEstimation(torch.nn.Module):
+    def __init__(self, device = 'cpu'):
+        super(OnlyThreeDimHandPoseEstimation, self).__init__()
+        self.device = device
+        self.resnet_extractor = ResNetFeatureExtractor(resnet_out_feature_dim)
+        self.threeDimPoseEstimate = torch.nn.Sequential(
+            torch.nn.Linear(resnet_out_feature_dim, resnet_out_feature_dim//2),
+            torch.nn.ReLU(),
+            torch.nn.Linear(resnet_out_feature_dim//2, resnet_out_feature_dim//4),
+            torch.nn.ReLU(),
+            torch.nn.Linear(resnet_out_feature_dim//4, resnet_out_feature_dim//8),
+            torch.nn.ReLU(),
+            torch.nn.Linear(resnet_out_feature_dim//8, keypoint_num*3),#[x1, y1, z1, x2, y2, z2......] the ration of u v, x=u/width, y=v/height
+            torch.nn.Sigmoid()
+        )
+    
+
+    def forward(self, img, camera_intrinsic_matrix, pose_x0 = None, index_root_bone_length = None, kp_coord_xyz_root = None):
+        resnet_features = self.resnet_extractor(img)
+        pose3D_xyz = (self.threeDimPoseEstimate(resnet_features) - 0.5 )*2
+        b, n = pose3D_xyz.shape
+        pose3D_xyz = pose3D_xyz.view(b, -1, 3)
+        uv21 = batch_project_xyz_to_uv(pose3D_xyz, camera_intrinsic_matrix)
+
+        refined_joint_coord = [pose3D_xyz, uv21]
+        return refined_joint_coord, torch.tensor(0)
