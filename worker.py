@@ -10,6 +10,7 @@ import glob
 import shutil
 import GPUtil
 import time
+from datetime import datetime
 
 from config.config import *
 
@@ -18,7 +19,7 @@ from config.config import *
 # from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
 # from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
 from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
-from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation
+from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation, TwoDimHandPoseWithFKEstimation
 from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
@@ -40,13 +41,16 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose']
+        assert model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']
 
         self.device = device
 
         if model_name == 'TwoDimHandPose':
             self.model = TwoDimHandPoseEstimation(device)
             comp_xyz_loss = False
+        elif model_name == 'TwoDimHandPoseWithFK':
+            self.model = TwoDimHandPoseWithFKEstimation(device)
+            comp_xyz_loss = True 
         elif model_name == 'DiffusionHandPose':
             self.model = Diffusion3DHandPoseEstimation(device)
             comp_xyz_loss = True
@@ -58,7 +62,6 @@ class Worker(object):
             comp_xyz_loss = True 
         
 
-        self.model.to(device)
             
         self.criterion = LossCalculation(device=device, comp_xyz_loss = comp_xyz_loss)
 
@@ -71,15 +74,21 @@ class Worker(object):
             val_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='evaluation')
         self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=15)
         self.val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=15)
+        
+        current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
-        log_dir = sorted(glob.glob(os.path.join(save_log_dir, dataset_name, 'run_*')), key=lambda x: int(x.split('_')[-1]))
-        run_id = int(log_dir[-1].split('_')[-1]) + 1 if log_dir else 0
-        self.exp_dir = os.path.join(save_log_dir, model_name, dataset_name, f'run_{run_id:03d}')
+
+        # log_dir_last_name = sorted(glob.glob(os.path.join(save_log_dir, dataset_name, 'run_*')), key=lambda x: int(x.split('_')[-1]))
+        # run_id = int(log_dir_last_name[-1].split('_')[-1]) + 1 if log_dir_last_name else 0
+
+        self.exp_dir = os.path.join(save_log_dir, model_name, dataset_name, f'run_{current_timestamp}')
         os.makedirs(self.exp_dir, exist_ok=True)
 
         self.txtfile = os.path.join(self.exp_dir, 'log.txt')
         if os.path.exists(self.txtfile):
             os.remove(self.txtfile)
+
+        self.write_loginfo_to_txt(f'{self.exp_dir}')
 
         self.logger = SummaryWriter(self.exp_dir)
 
@@ -94,24 +103,50 @@ class Worker(object):
             # Using the following load method will cause each process to occupy an extra part of the video memory on GPU0. The reason is that the default load location is GPU0.
             # checkpoint = torch.load("checkpoint.pth")
 
-            self.model.load_state_dict(checkpoint['state_dict'])
+            # Update the model's state dict
+            new_state_dict = {k: v for k, v in checkpoint['state_dict'].items() if k in self.model.state_dict()}
+            self.model.load_state_dict(new_state_dict, strict=False)
+
            
             # if cuda_valid:
             #     self.model.module.load_state_dict(checkpoint['state_dict'])
             # else:
             #     self.model.load_state_dict(checkpoint['state_dict'])
             
-            if not finetune: #train
-                self.optimizer.load_state_dict(checkpoint['optimizer'])
+            # Check if the models are different
+            old_keys = set(checkpoint['state_dict'].keys())
+            new_keys = set(self.model.state_dict().keys())
+
+            # If there's a difference in the keys, we assume the architectures are different
+            if old_keys != new_keys:
+                finetune = True
+            else:
+                finetune = False  # or set finetune based on some other condition or user input
+
+            # Conditional loading of the optimizer state
+            if not finetune: #train                
                 self.best_val_epoch_mpjpe = checkpoint['MPJPE']
                 self.start_epoch = checkpoint['epoch']
 
-            print("=> loaded checkpoint '{}' (epoch {})".format(resume_weight_path, checkpoint['epoch']))
+                # However, if you do want to load the state dict, you would need to ensure that the state matches the new model
+                optimizer_state_dict = checkpoint['optimizer']
+                
+                # Filter out optimizer state that doesn't match the new model's parameters
+                filtered_optimizer_state_dict = {
+                    k: v for k, v in optimizer_state_dict.items() if k in self.optimizer.state_dict()
+                }
+                
+                # Load the filtered state dict
+                self.optimizer.load_state_dict(filtered_optimizer_state_dict)
 
+
+            print("=> loaded checkpoint '{}' (epoch {})".format(resume_weight_path, checkpoint['epoch']))
+            self.write_loginfo_to_txt("=> loaded checkpoint '{}' (epoch {})".format(resume_weight_path, checkpoint['epoch'])+'\n')
             # Clear start epoch if fine-tuning
             if finetune:
                 self.start_epoch = 0
 
+        self.model.to(device)
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
 
         
@@ -280,8 +315,6 @@ class Worker(object):
 if __name__ == '__main__':
     # fast_debug = True
     fast_debug = False
-    gpu_idx = 0
-    gpu_idx = None
     worker = Worker(gpu_idx)
     worker.forward(fast_debug)
 

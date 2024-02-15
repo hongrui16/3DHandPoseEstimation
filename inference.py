@@ -21,7 +21,7 @@ from config.config import *
 # from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
 # from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
 from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
-from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation
+from network.twoDimHandPoseEstimation import *
 from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
@@ -44,20 +44,21 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose']
+        
+        assert model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']
 
         self.device = device
-        self.save_img = True
 
         if model_name == 'TwoDimHandPose':
             self.model = TwoDimHandPoseEstimation(device)
+        elif model_name == 'TwoDimHandPoseWithFK':
+            self.model = TwoDimHandPoseWithFKEstimation(device)
         elif model_name == 'DiffusionHandPose':
             self.model = Diffusion3DHandPoseEstimation(device)
         elif model_name == 'ThreeDimHandPose':
             self.model = ThreeDimHandPoseEstimation(device)
         elif model_name == 'OnlyThreeDimHandPose':
             self.model = OnlyThreeDimHandPoseEstimation(device)
-            
 
         self.model.to(device)
             

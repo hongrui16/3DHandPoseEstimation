@@ -160,6 +160,7 @@ class ForwardKinematics(nn.Module):
 
                 wrist(root)
                     |
+                    v
         --------------------------
         A1    B1    C1    D1    E1
         |     |     |     |     |
@@ -339,7 +340,11 @@ class ForwardKinematics(nn.Module):
             The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
         """
         # Zoom positions_xyz
+        # print(f'index_root_bone_length.device: {index_root_bone_length.device}')
+        # print(f'kp_coord_xyz21_rel_normed.device: {kp_coord_xyz21_rel_normed.device}')
         index_root_bone_length_expanded = index_root_bone_length.unsqueeze(-1) # [batch_size, 1, 1]
+        # print(f'index_root_bone_length_expanded.device: {index_root_bone_length_expanded.device}')
+
         positions_xyz_scaled = kp_coord_xyz21_rel_normed * index_root_bone_length_expanded # [batch_size, num_points, 3]
 
         # Adjust the shape of kp_coord_xyz_root to facilitate addition operations
@@ -472,6 +477,7 @@ class ForwardKinematicsMatchGTOrder(nn.Module):
 
                 wrist(root)
                     |
+                    v
         --------------------------
         A1    B1    C1    D1    E1
         |     |     |     |     |
@@ -483,7 +489,6 @@ class ForwardKinematicsMatchGTOrder(nn.Module):
         |     |     |     |     |
         v     v     v     v     v
         A4    B4    C4    D4    E4
-
 
         A: thumb
         B：index

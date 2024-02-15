@@ -22,12 +22,20 @@ If the entire palm rotates about the direction of the tip of the middle finger (
 
 nodes = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'C1', 'C2', 'C3', 'C4', 'D1', 'D2', 'D3', 'D4', 'E1', 'E2', 'E3', 'E4']
 
-                                        root
-                                         |
- ---------------------------------------------------------------------------------
- |                   |                   |                   |                   |
- v                   v                   v                   v                   v
- A1-->A2-->A3-->A4   B1-->B2-->B3-->B4   C1-->C2-->C3-->C4   D1-->D2-->D3-->D4   E1-->E2-->E3-->E4
+        wrist(root)
+            |
+            v
+--------------------------
+A1    B1    C1    D1    E1
+|     |     |     |     |
+v     v     v     v     v
+A2    B2    C2    D2    E2
+|     |     |     |     |
+v     v     v     v     v
+A3    B3    C3    D3    E3
+|     |     |     |     |
+v     v     v     v     v
+A4    B4    C4    D4    E4
 
 A: thumb
 B：index
@@ -39,18 +47,18 @@ E: pinky
 
 
 class BoneAnglePrediction(torch.nn.Module):
-    def __init__(self, device = 'cpu'):
+    def __init__(self, device = 'cpu', input_dim = keypoint_num*3):
         super(BoneAnglePrediction, self).__init__()
         self.mlp1 = torch.nn.Sequential(
-            torch.nn.Linear(keypoint_num*3, keypoint_num*3),
+            torch.nn.Linear(input_dim, input_dim),
             torch.nn.ReLU(),
-            torch.nn.Linear(keypoint_num*3, 3),  # Predicting root joint orientation
+            torch.nn.Linear(input_dim, 3),  # Predicting root joint orientation
             torch.nn.Sigmoid()
         )
         self.mlp2 = torch.nn.Sequential(
-            torch.nn.Linear(keypoint_num*3, keypoint_num*3),
+            torch.nn.Linear(input_dim, input_dim),
             torch.nn.ReLU(),
-            torch.nn.Linear(keypoint_num*3, other_joint_angles_num),  # Predicting other joint angles 
+            torch.nn.Linear(input_dim, other_joint_angles_num),  # Predicting other joint angles 
             torch.nn.Sigmoid()
         )
     
@@ -68,14 +76,14 @@ class BoneAnglePrediction(torch.nn.Module):
     
 
 class BoneLengthPrediction(torch.nn.Module):
-    def __init__(self, device = 'cpu'):
+    def __init__(self, device = 'cpu', input_dim = keypoint_num*3):
         super(BoneLengthPrediction, self).__init__()
         self.device = device
 
         self.mlp1 = torch.nn.Sequential(
-            torch.nn.Linear(keypoint_num*3, keypoint_num*3),
+            torch.nn.Linear(input_dim, input_dim),
             torch.nn.ReLU(),
-            torch.nn.Linear(keypoint_num*3, bone_length_num),  # Predicting length
+            torch.nn.Linear(input_dim, bone_length_num),  # Predicting length
             torch.nn.Sigmoid()
         )
 
