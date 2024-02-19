@@ -31,9 +31,15 @@ Training and validation processes are implemented in ```wroker.py```. For debugg
 
 ## Relative References
 [contra-hand](https://github.com/lmb-freiburg/contra-hand/tree/main)
+
 [obman_train](https://github.com/hassony2/obman_train/tree/master)
+
 [manopth](https://github.com/hassony2/manopth)
+
 [MANO](https://github.com/otaheri/MANO)
+
 [Minimal-Hand-pytorch](https://github.com/MengHao666/Minimal-Hand-pytorch/tree/main)
+
 [hand3d](https://github.com/lmb-freiburg/hand3d)
+
 [3dhand](https://github.com/boukhayma/3dhand)
