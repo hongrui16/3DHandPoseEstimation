@@ -43,3 +43,5 @@ Training and validation processes are implemented in ```wroker.py```. For debugg
 [hand3d](https://github.com/lmb-freiburg/hand3d)
 
 [3dhand](https://github.com/boukhayma/3dhand)
+
+[3D-Hand-Pose-Estimation](https://github.com/OlgaChernytska/3D-Hand-Pose-Estimation)
