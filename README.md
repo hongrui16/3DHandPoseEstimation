@@ -30,10 +30,10 @@ The metric MPJPE (Mean Per Joint Position Error) is implemented in  ```criterion
 Training and validation processes are implemented in ```wroker.py```. For debugging purposes, you can set the input variable ```fast_debug``` of the ```trainval function``` to ```True```.
 
 ## Relative References
-contra-hand(https://github.com/lmb-freiburg/contra-hand/tree/main)
-obman_train(https://github.com/hassony2/obman_train/tree/master)
-manopth(https://github.com/hassony2/manopth)
-MANO(https://github.com/otaheri/MANO)
-Minimal-Hand-pytorch(https://github.com/MengHao666/Minimal-Hand-pytorch/tree/main)
-hand3d(https://github.com/lmb-freiburg/hand3d)
-3dhand(https://github.com/boukhayma/3dhand)
+[contra-hand](https://github.com/lmb-freiburg/contra-hand/tree/main)
+[obman_train](https://github.com/hassony2/obman_train/tree/master)
+[manopth](https://github.com/hassony2/manopth)
+[MANO](https://github.com/otaheri/MANO)
+[Minimal-Hand-pytorch](https://github.com/MengHao666/Minimal-Hand-pytorch/tree/main)
+[hand3d](https://github.com/lmb-freiburg/hand3d)
+[3dhand](https://github.com/boukhayma/3dhand)
