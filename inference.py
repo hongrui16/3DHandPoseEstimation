@@ -23,6 +23,7 @@ from config import config
 from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
 from network.twoDimHandPoseEstimation import *
 from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
+from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
@@ -31,8 +32,8 @@ from utils.get_gpu_info import *
 from utils.plot_anno import *
 
 config.is_inference = True
-config.model_name = config.resume_weight_path.split('/')[-4]
-assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']
+config.model_name = config.infer_resume_weight_path.split('/')[-4]
+assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK'， "MANO3DHandPose"]
 
 class Worker(object):
     def __init__(self, gpu_index = None):
@@ -62,6 +63,8 @@ class Worker(object):
             self.model = ThreeDimHandPoseEstimation(device)
         elif config.model_name == 'OnlyThreeDimHandPose':
             self.model = OnlyThreeDimHandPoseEstimation(device)
+        elif config.model_name == 'MANO3DHandPose':
+            self.model = MANO3DHandPoseEstimation(device)
 
         self.model.to(device)
             
@@ -72,7 +75,7 @@ class Worker(object):
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
         self.val_loader = DataLoader(val_set, batch_size=config.infer_batch_size, shuffle=False, num_workers=15)
 
-        save_log_dir = config.resume_weight_path[:config.resume_weight_path.find(config.resume_weight_path.split('/')[-1])]
+        save_log_dir = config.infer_resume_weight_path[:config.infer_resume_weight_path.find(config.infer_resume_weight_path.split('/')[-1])]
         log_dir = sorted(glob.glob(os.path.join(save_log_dir, 'infer_*')), key=lambda x: int(x.split('_')[-1]))
         run_id = int(log_dir[-1].split('_')[-1]) + 1 if log_dir else 0
         self.exp_dir = os.path.join(save_log_dir, f'infer_{run_id:03d}')
@@ -91,9 +94,9 @@ class Worker(object):
         self.best_val_epoch_mpjpe = float('inf')
         self.start_epoch = 0
         
-        if not os.path.isfile(config.resume_weight_path):
-            raise RuntimeError("=> no checkpoint found at '{}'" .format(config.resume_weight_path))
-        checkpoint = torch.load(config.resume_weight_path, map_location=torch.device('cpu'))
+        if not os.path.isfile(config.infer_resume_weight_path):
+            raise RuntimeError("=> no checkpoint found at '{}'" .format(config.infer_resume_weight_path))
+        checkpoint = torch.load(config.infer_resume_weight_path, map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint["state_dict"])
         # Using the following load method will cause each process to occupy an extra part of the video memory on GPU0. The reason is that the default load location is GPU0.
         # checkpoint = torch.load("checkpoint.pth")
@@ -105,7 +108,7 @@ class Worker(object):
         # else:
         #     self.model.load_state_dict(checkpoint['state_dict'])
 
-        print("=> loaded checkpoint '{}' (epoch {})".format(config.resume_weight_path, checkpoint['epoch']))
+        print("=> loaded checkpoint '{}' (epoch {})".format(config.infer_resume_weight_path, checkpoint['epoch']))
 
 
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')

@@ -17,6 +17,16 @@ crop_offset_noise=False
 scoremap_dropout=False
 calculate_scoremap=False
 
+
+'''network parameters''' 
+# model_name = 'TwoDimHandPose'
+# model_name = 'DiffusionHandPose'
+# model_name = 'ThreeDimHandPose'
+# model_name = 'OnlyThreeDimHandPose'
+# model_name = 'TwoDimHandPoseWithFK'
+model_name = 'MANO3DHandPose'
+
+
 '''## training parameters'''
 save_log_dir = 'logs'
 max_epoch = 100
@@ -26,31 +36,18 @@ gpu_idx = None
 # gpu_idx = 1
 uv_from_xD = 3 ## this is for where to get output of UV coordinates in TwoDimHandPoseWithFKEstimation, x = 2: from 2D keypoints directly; x = 3: from 3D keypoints projections; x = 2.5: 1/2 from 2D keypoints directly, 1/2 from 3D keypoints projections
 is_inference = False
-
-'''model parameters''' 
-# model_name = 'TwoDimHandPose'
-# model_name = 'DiffusionHandPose'
-# model_name = 'ThreeDimHandPose'
-# model_name = 'OnlyThreeDimHandPose'
-model_name = 'TwoDimHandPoseWithFK'
+resume_weight_path = None
 
 
 '''## inference parameters'''
 infer_batch_size = 100
-# resume_weight_path = 'logs/TwoDimHandPose/RHD/run_000/DF_model_best.pth.tar'
-# resume_weight_path = 'logs/ThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
-# resume_weight_path = 'logs/OnlyThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
-resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-15-52/DF_model_best.pth.tar'
-resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-16-45/DF_model_best.pth.tar'
-resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-17-45/DF_model_best.pth.tar'
+# infer_resume_weight_path = 'logs/TwoDimHandPose/RHD/run_000/DF_model_best.pth.tar'
+# infer_resume_weight_path = 'logs/ThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
+# infer_resume_weight_path = 'logs/OnlyThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
+infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-15-52/DF_model_best.pth.tar'
+infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-16-45/DF_model_best.pth.tar'
+infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-17-45/DF_model_best.pth.tar'
 
-
-'''model parameters''' 
-# model_name = 'TwoDimHandPose'
-# model_name = 'DiffusionHandPose'
-# model_name = 'ThreeDimHandPose'
-# model_name = 'OnlyThreeDimHandPose'
-model_name = 'TwoDimHandPoseWithFK'
 
 
 '''## general parameters'''
