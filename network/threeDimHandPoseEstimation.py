@@ -35,7 +35,7 @@ class ThreeDimHandPoseEstimation(torch.nn.Module):
         self.bone_length_pred_model = BoneLengthPrediction()
     
 
-    def forward(self, img, camera_intrinsic_matrix, pose_x0, index_root_bone_length, kp_coord_xyz_root):
+    def forward(self, img, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root, pose_x0 = None):
         resnet_features = self.resnet_extractor(img)
         pose3D_xyz = (self.threeDimPoseEstimate(resnet_features) - 0.5 )*2
         root_angles, other_angles = self.bone_angle_pred_model(pose3D_xyz)
@@ -64,7 +64,7 @@ class OnlyThreeDimHandPoseEstimation(torch.nn.Module):
         )
     
 
-    def forward(self, img, camera_intrinsic_matrix, pose_x0 = None, index_root_bone_length = None, kp_coord_xyz_root = None):
+    def forward(self, img, camera_intrinsic_matrix, index_root_bone_length = None, kp_coord_xyz_root = None, pose_x0 = None):
         resnet_features = self.resnet_extractor(img)
         pose3D_xyz = (self.threeDimPoseEstimate(resnet_features) - 0.5 )*2
         b, n = pose3D_xyz.shape

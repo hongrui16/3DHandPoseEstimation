@@ -32,7 +32,7 @@ class TwoDimHandPoseEstimation(torch.nn.Module):
         )
     
 
-    def forward(self, img, camera_intrinsic_matrix = None, pose_x0 = None, index_root_bone_length = None, keypoint_xyz_root = None):
+    def forward(self, img, camera_intrinsic_matrix = None, index_root_bone_length = None, keypoint_xyz_root = None, pose_x0 = None):
         # Extract features using ResNet model
         resnet_features = self.resnet_extractor(img)
         pose = self.twoDimPoseEstimate(resnet_features)
@@ -90,7 +90,7 @@ class TwoDimHandPoseWithFKEstimation(torch.nn.Module):
 
 
 
-    def forward(self, img, camera_intrinsic_matrix = None, pose_x0 = None, index_root_bone_length = None, keypoint_xyz_root = None):
+    def forward(self, img, camera_intrinsic_matrix = None, index_root_bone_length = None, keypoint_xyz_root = None, pose_x0 = None):
         # Extract features using ResNet model
         resnet_features = self.resnet_extractor(img)
         pose = self.twoDimPoseEstimate(resnet_features)

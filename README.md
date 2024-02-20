@@ -12,7 +12,10 @@ All parameters are configured in ```config/config.py```. This includes settings 
 ## Dataset
 Currently, only a data loader for RHD dataset is impletemented.
 To use the RHD dataset, specify the data directory and the dataset name ```dataset_root_dir``` and ```dataset_name``` in ```config/config.py```, respectively.
+### RHD
+Joint order in RHD is as follows:
 
+<img src="imgs/RHD_Joint_Order.png" width="300" height="300">
 
 ## Network
 The network comprises various elementary modules, including conditional diffusion, a forward kinematic layer, and a ResNet feature extractor, etc.

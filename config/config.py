@@ -53,11 +53,11 @@ resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-17-45/DF_m
 model_name = 'TwoDimHandPoseWithFK'
 
 
-## general parameters
+'''## general parameters'''
 keypoint_num = 21
 
 
-## diffusion3DHandPoseEstimation parameters
+'''## diffusion3DHandPoseEstimation parameters '''
 condition_feat_dim = 256
 num_timesteps = 400
 num_sampling_timesteps = 200
@@ -68,3 +68,7 @@ other_joint_angles_num = 23
 ## twoDimHandPoseEstimation parameters
 resnet_out_feature_dim = 1024
 
+'''## MANO parameters'''
+mano_right_hand_path = '../config/mano/models/MANO_RIGHT.pkl'
+mano_pose_num = 45
+mano_beta_num = 10 ### do not change this

@@ -216,9 +216,12 @@ class RHD_HandKeypointsDataset(Dataset):
         # Make coords relative to root joint
         keypoint_xyz_root = keypoint_xyz21[0, :]  # this is the palm coord
         keypoint_xyz21_rel = keypoint_xyz21 - keypoint_xyz_root # relative coords in metric coords
-        index_root_bone_length = torch.sqrt((keypoint_xyz21_rel[12, :] - keypoint_xyz21_rel[11, :]).pow(2).sum())
-        data_dict['keypoint_scale'] = index_root_bone_length.unsqueeze(-1)
-        data_dict['keypoint_xyz21_rel_normed'] = keypoint_xyz21_rel / index_root_bone_length ##normalized by length of 12->11
+        # index_root_bone_length = torch.sqrt((keypoint_xyz21_rel[12, :] - keypoint_xyz21_rel[11, :]).pow(2).sum())
+        index_root_bone_length = torch.sqrt((keypoint_xyz21_rel[12, :]).pow(2).sum())
+
+        # print('index_root_bone_length', index_root_bone_length)
+        data_dict['keypoint_scale'] = index_root_bone_length.unsqueeze(0)
+        data_dict['keypoint_xyz21_rel_normed'] = keypoint_xyz21_rel / index_root_bone_length ##normalized by length of 12->0
         data_dict['keypoint_xyz_root'] = keypoint_xyz_root
 
         # Calculate local coordinates
@@ -541,10 +544,12 @@ class RHD_HandKeypointsDataset(Dataset):
 
 if __name__ == '__main__':
 
-    # dataset_dir = '../../dataset/RHD'
-    dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+    dataset_dir = '../../dataset/RHD'
+    # dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
     num_workers = 15
     batch_size=480
+    num_workers = 1
+    batch_size=1
     gpu_index = None
     cuda_valid = torch.cuda.is_available()
     if cuda_valid:
@@ -562,7 +567,7 @@ if __name__ == '__main__':
 
     # Creating the dataset
     # dataset = RHD_HandKeypointsDataset(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
-    dataset = RHD_HandKeypointsDataset(root_dir=dataset_dir, set_type='training', transform=transforms, debug=False)
+    dataset = RHD_HandKeypointsDataset(root_dir=dataset_dir, set_type='evaluation', transform=transforms, debug=False)
 
     # Creating the DataLoader
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers = num_workers)
@@ -610,7 +615,7 @@ if __name__ == '__main__':
         # # print('keypoints_uv_visible.shape:', keypoints_uv_visible.shape) # torch.Size([BS, 42, 1])
         # print('camera_matrices.shape:', camera_matrices.shape) # torch.Size([BS, 3, 3])
         # print('camera_matrices\n', camera_matrices)
-        # print('index_root_bone_length.shape:', index_root_bone_length.shape) # torch.Size([BS, 1])
+        print('index_root_bone_length.shape:', index_root_bone_length.shape) # torch.Size([BS, 1])
         # print('')
         # # print('keypoints_xyz[:, :3]', keypoints_xyz[:, :3])
         # print('keypoint_xyz21[:, :6]\n', keypoint_xyz21[:, :6])
@@ -621,7 +626,7 @@ if __name__ == '__main__':
         # print('keypoint_xyz21_rel_normed', keypoint_xyz21_rel_normed)
         # print('keypoint_uv21', keypoint_uv21)
         # print('keypoint_scale', keypoint_scale)
-        # print('keypoint_xyz_root', keypoint_xyz_root, keypoint_xyz_root.shape)
+        print('keypoint_xyz_root', keypoint_xyz_root, keypoint_xyz_root.shape)
         
         # print('images.shape:', images.shape) # torch.Size([BS, 3, 3])
         # print('image_crop.shape:', image_crop.shape) # torch.Size([BS, 3, 3])
@@ -635,5 +640,6 @@ if __name__ == '__main__':
         # break
         print(f'i: {i}\n')
         i += 1
+        break
         if i > 8:
             break

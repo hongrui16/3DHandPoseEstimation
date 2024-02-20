@@ -173,7 +173,7 @@ class Worker(object):
         
             with torch.no_grad():
 
-                refined_joint_coord, _ = self.model(images, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
+                refined_joint_coord, _ = self.model(images, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
                 keypoint_xyz21_pred, keypoint_uv21_pred, keypoint_uv21_from_2D_net = refined_joint_coord
                 if config.model_name == 'TwoDimHandPose':
                     mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)

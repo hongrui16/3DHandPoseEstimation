@@ -25,24 +25,6 @@ def camera_xyz_to_uv(xyz, intrinsic_matrix):
 
     return uv
 
-def batch_xyz_to_uv(xyz_batch, K):
-    
-
-    # Convert the shape of points_3d from (bs, num, 3) to (bs*num, 3)
-    bs, num, _ = xyz_batch.shape
-    points_3d_reshaped = xyz_batch.view(bs * num, 3)
-
-    # Use matrix multiplication to multiply the camera intrinsic parameter matrix K and the three-dimensional coordinate points_3d
-    p = torch.matmul(K, points_3d_reshaped.t()) # Note that transposition is required
-
-    #Normalize to get the two-dimensional coordinates (u, v, 1). Note that you need to divide by the last row.
-    uv = p[:-1] / p[-1]
-
-    # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
-    uv = uv.t().view(bs, num, 2)
-
-    return uv
-
 
 def batch_project_xyz_to_uv(positions_xyz, camera_intrinsic_matrix):
     """

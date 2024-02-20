@@ -21,6 +21,7 @@ from config import config
 from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
 from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation, TwoDimHandPoseWithFKEstimation
 from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
+from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
@@ -44,7 +45,7 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']
+        assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK', 'MANO3DHandPose']
 
         self.device = device
 
@@ -63,6 +64,9 @@ class Worker(object):
         elif config.model_name == 'OnlyThreeDimHandPose':
             self.model = OnlyThreeDimHandPoseEstimation(device)
             comp_xyz_loss = True 
+        elif config.model_name == 'MANO3DHandPose':
+            self.model = MANO3DHandPoseEstimation(device)
+            comp_xyz_loss = True
         
 
             
@@ -214,12 +218,12 @@ class Worker(object):
 
             self.optimizer.zero_grad()
             if split == 'training':
-                refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
+                refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
                 keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
+                    refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
                     keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
                     if config.model_name == 'TwoDimHandPose':
                         mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
