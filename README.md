@@ -1,5 +1,5 @@
 # DenoisingDiffusion3DHandPoseEstimation
-This a code implementation for 3D hand pose edtimation, and some parts of the work are based on the paper titled ["Denoising Diffusion for 3D Hand Pose Estimation from Images"](https://arxiv.org/abs/2308.09523).
+This a code implementation for 3D hand pose estimation, and some parts of the work are based on the paper titled ["Denoising Diffusion for 3D Hand Pose Estimation from Images"](https://arxiv.org/abs/2308.09523).
 
 <!-- 
 ## Install library packages
