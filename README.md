@@ -29,6 +29,11 @@ The metric MPJPE (Mean Per Joint Position Error) is implemented in  ```criterion
 ## Training and Validation
 Training and validation processes are implemented in ```wroker.py```. For debugging purposes, you can set the input variable ```fast_debug``` of the ```trainval function``` to ```True```.
 
+## MANO
+Joint order in MANO is as follows:
+
+<img src="imgs/MANO_Joint_Order.png" width="300" height="300">
+
 ## Relative References
 [contra-hand](https://github.com/lmb-freiburg/contra-hand/tree/main)
 
