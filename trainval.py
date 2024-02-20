@@ -12,7 +12,7 @@ import GPUtil
 import time
 from datetime import datetime
 
-from config.config import *
+from config import config
 
 # from network.sub_modules.conditionalDiffusion import *
 # from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimation
@@ -27,13 +27,16 @@ from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
 
+config.is_inference = False
+
 class Worker(object):
     def __init__(self, gpu_index = None):
+        
         cuda_valid = torch.cuda.is_available()
         if cuda_valid:
             gpu_index = gpu_index  # # Here set the index of the GPU you want to use
             print(f"CUDA is available, using GPU {gpu_index}")
-            if gpu_idx is None:
+            if config.gpu_idx is None:
                 device = torch.device(f"cuda")
             else:
                 device = torch.device(f"cuda:{gpu_index}")
@@ -41,23 +44,23 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']
+        assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']
 
         self.device = device
 
-        if model_name == 'TwoDimHandPose':
+        if config.model_name == 'TwoDimHandPose':
             self.model = TwoDimHandPoseEstimation(device)
             comp_xyz_loss = False
-        elif model_name == 'TwoDimHandPoseWithFK':
+        elif config.model_name == 'TwoDimHandPoseWithFK':
             self.model = TwoDimHandPoseWithFKEstimation(device)
             comp_xyz_loss = True 
-        elif model_name == 'DiffusionHandPose':
+        elif config.model_name == 'DiffusionHandPose':
             self.model = Diffusion3DHandPoseEstimation(device)
             comp_xyz_loss = True
-        elif model_name == 'ThreeDimHandPose':
+        elif config.model_name == 'ThreeDimHandPose':
             self.model = ThreeDimHandPoseEstimation(device)
             comp_xyz_loss = True
-        elif model_name == 'OnlyThreeDimHandPose':
+        elif config.model_name == 'OnlyThreeDimHandPose':
             self.model = OnlyThreeDimHandPoseEstimation(device)
             comp_xyz_loss = True 
         
@@ -69,11 +72,11 @@ class Worker(object):
 
         self.metric_mpjpe = MPJPE()
 
-        if dataset_name == 'RHD':
-            train_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='training')
-            val_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='evaluation')
-        self.train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=15)
-        self.val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=15)
+        if config.dataset_name == 'RHD':
+            train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+            val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+        self.train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, num_workers=15)
+        self.val_loader = DataLoader(val_set, batch_size=config.batch_size, shuffle=False, num_workers=15)
         
         current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
@@ -81,7 +84,7 @@ class Worker(object):
         # log_dir_last_name = sorted(glob.glob(os.path.join(save_log_dir, dataset_name, 'run_*')), key=lambda x: int(x.split('_')[-1]))
         # run_id = int(log_dir_last_name[-1].split('_')[-1]) + 1 if log_dir_last_name else 0
 
-        self.exp_dir = os.path.join(save_log_dir, model_name, dataset_name, f'run_{current_timestamp}')
+        self.exp_dir = os.path.join(config.save_log_dir, config.model_name, config.dataset_name, f'run_{current_timestamp}')
         os.makedirs(self.exp_dir, exist_ok=True)
 
         self.txtfile = os.path.join(self.exp_dir, 'log.txt')
@@ -95,10 +98,10 @@ class Worker(object):
         self.best_val_epoch_mpjpe = float('inf')
         self.start_epoch = 0
         
-        if resume_weight_path is not None:
-            if not os.path.isfile(resume_weight_path):
-                raise RuntimeError("=> no checkpoint found at '{}'" .format(resume_weight_path))
-            checkpoint = torch.load(resume_weight_path, map_location=torch.device('cpu'))
+        if config.resume_weight_path is not None:
+            if not os.path.isfile(config.resume_weight_path):
+                raise RuntimeError("=> no checkpoint found at '{}'" .format(config.resume_weight_path))
+            checkpoint = torch.load(config.resume_weight_path, map_location=torch.device('cpu'))
             # model.load_state_dict(checkpoint["state_dict"])
             # Using the following load method will cause each process to occupy an extra part of the video memory on GPU0. The reason is that the default load location is GPU0.
             # checkpoint = torch.load("checkpoint.pth")
@@ -140,8 +143,8 @@ class Worker(object):
                 self.optimizer.load_state_dict(filtered_optimizer_state_dict)
 
 
-            print("=> loaded checkpoint '{}' (epoch {})".format(resume_weight_path, checkpoint['epoch']))
-            self.write_loginfo_to_txt("=> loaded checkpoint '{}' (epoch {})".format(resume_weight_path, checkpoint['epoch'])+'\n')
+            print("=> loaded checkpoint '{}' (epoch {})".format(config.resume_weight_path, checkpoint['epoch']))
+            self.write_loginfo_to_txt("=> loaded checkpoint '{}' (epoch {})".format(config.resume_weight_path, checkpoint['epoch'])+'\n\n')
             # Clear start epoch if fine-tuning
             if finetune:
                 self.start_epoch = 0
@@ -186,7 +189,7 @@ class Worker(object):
             # if idx < 112:
             #     continue
             # print('idx', idx)
-            if hand_crop:
+            if config.hand_crop:
                 image = sample['image_crop'].to(self.device)
             else:
                 image = sample['image'].to(self.device)
@@ -212,13 +215,13 @@ class Worker(object):
             self.optimizer.zero_grad()
             if split == 'training':
                 refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
-                keypoint_xyz21_pred, keypoint_uv21_pred = refined_joint_coord
+                keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
                 mpjpe = None
             else:
                 with torch.no_grad():
                     refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
-                    keypoint_xyz21_pred, keypoint_uv21_pred = refined_joint_coord
-                    if model_name == 'TwoDimHandPose':
+                    keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
+                    if config.model_name == 'TwoDimHandPose':
                         mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
                     else:
                         # elif model_name == 'DiffusionHandPose' or model_name == 'ThreeDimHandPose':
@@ -292,11 +295,11 @@ class Worker(object):
         loss_file.close()# 
     
     def forward(self, fast_debug = False):
-        for epoch in range(self.start_epoch, max_epoch): 
+        for epoch in range(self.start_epoch, config.max_epoch): 
             # _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
-            _ = self.trainval(epoch, max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
+            _ = self.trainval(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
 
-            mpjpe = self.trainval(epoch, max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
+            mpjpe = self.trainval(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
             checkpoint = {
                         'epoch': epoch + 1,
                         'state_dict': self.model.state_dict(),
@@ -315,7 +318,7 @@ class Worker(object):
 if __name__ == '__main__':
     # fast_debug = True
     fast_debug = False
-    worker = Worker(gpu_idx)
+    worker = Worker(config.gpu_idx)
     worker.forward(fast_debug)
 
     # gpu_info = get_gpu_utilization_as_string()

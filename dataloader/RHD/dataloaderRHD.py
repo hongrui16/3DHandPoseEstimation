@@ -14,8 +14,10 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append('../..')  
 
-from config.config import *
+from config import config
+
 from utils import transformations as tr
+
 from utils.plot_anno import *
 from utils.general_torch import crop_image_from_xy_torch
 # from utils.canonical_trafo import canonical_trafo, flip_right_hand
@@ -34,30 +36,30 @@ class RHD_HandKeypointsDataset(Dataset):
         self.debug = debug
 
         # general parameters
-        self.sigma = sigma
-        self.shuffle = shuffle
-        self.use_wrist_coord = use_wrist_coord
-        self.random_crop_to_size = random_crop_to_size
+        self.sigma = config.sigma
+        self.shuffle = config.shuffle
+        self.use_wrist_coord = config.use_wrist_coord
+        self.random_crop_to_size = config.random_crop_to_size
         self.random_crop_size = 256
-        self.scale_to_size = scale_to_size
+        self.scale_to_size = config.scale_to_size
         self.scale_target_size = (240, 320)  # size its scaled down to if scale_to_size=True
 
         # data augmentation parameters
-        self.hue_aug = hue_aug
+        self.hue_aug = config.hue_aug
         self.hue_aug_max = 0.1
 
-        self.hand_crop = hand_crop
-        self.coord_uv_noise = coord_uv_noise
+        self.hand_crop = config.hand_crop
+        self.coord_uv_noise = config.coord_uv_noise
         self.coord_uv_noise_sigma = 2.5  # std dev in px of noise on the uv coordinates
-        self.crop_center_noise = crop_center_noise
+        self.crop_center_noise = config.crop_center_noise
         self.crop_center_noise_sigma = 20.0  # std dev in px: this moves what is in the "center", but the crop always contains all keypoints
 
-        self.crop_scale_noise = crop_scale_noise
-        self.crop_offset_noise = crop_offset_noise
+        self.crop_scale_noise = config.crop_scale_noise
+        self.crop_offset_noise = config.crop_offset_noise
         self.crop_offset_noise_sigma = 10.0  # translates the crop after size calculation (this can move keypoints outside)
 
-        self.calculate_scoremap = calculate_scoremap
-        self.scoremap_dropout = scoremap_dropout
+        self.calculate_scoremap = config.calculate_scoremap
+        self.scoremap_dropout = config.scoremap_dropout
         self.scoremap_dropout_prob = 0.8
 
         # these are constants of the dataset and therefore must not be changed

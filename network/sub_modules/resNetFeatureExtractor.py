@@ -4,7 +4,7 @@ import sys
 # sys.path.append('../')  
 
 
-from config.config import *
+from config import config
 
 class ResNetFeatureExtractor(torch.nn.Module):
     def __init__(self, feat_dim):

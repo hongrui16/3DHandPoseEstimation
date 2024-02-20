@@ -6,7 +6,7 @@ import time
 import matplotlib.pyplot as plt
 import torch 
 
-def plot_uv_on_image(keypoints_uv, image, keypoints_vis = None, horizon_flip = False, img_filepath = None):
+def plot_uv_on_image(keypoints_uv, image, keypoints_vis = None, horizon_flip = False, img_filepath = None, second_keypoints_uv = None):
     # print(f'keypoints_vis.shape: {keypoints_vis.shape}')
     # Adjust keypoints to ensure they are within the image boundaries of 320x320
     if not keypoints_vis is None:
@@ -16,18 +16,34 @@ def plot_uv_on_image(keypoints_uv, image, keypoints_vis = None, horizon_flip = F
         image = image[:,::-1]
         h, w, _ = image.shape
         keypoints_uv[:, 0] = w - keypoints_uv[:, 0]
+        second_keypoints_uv[:, 0] = w - second_keypoints_uv[:, 0]
+        
+    # Prepare to plot the keypoints on the image
+    fig, axs = plt.subplots(1, 2 if second_keypoints_uv is not None else 1, figsize=(12 if second_keypoints_uv is not None else 6, 6))
+    axs = [axs] if not isinstance(axs, np.ndarray) else axs
 
-    # Re-plot the keypoints on the image, this time ensuring they are within the image boundaries
-    plt.figure(figsize=(6, 6))
-    plt.imshow(image)
-    plt.scatter(keypoints_uv[:, 0], keypoints_uv[:, 1], c='red', s=10)  # plot keypoints in red
-    plt.axis('on')  # remove axes for better visualization
+    # Plot the first set of keypoints
+    axs[0].imshow(image)
+    axs[0].scatter(keypoints_uv[:, 0], keypoints_uv[:, 1], c='red', s=10)  # plot keypoints in red
+    axs[0].axis('on')  # remove axes for better visualization
     
-    if not img_filepath is None:
+    # Plot the second set of keypoints, if provided
+    if second_keypoints_uv is not None:
+        if horizon_flip:
+            # If horizon_flip is True, the image has already been flipped
+            flipped_image = image
+        else:
+            flipped_image = image[:, ::-1]  # Flip the image for second keypoints plotting
+
+        axs[1].imshow(flipped_image)
+        axs[1].scatter(second_keypoints_uv[:, 0], second_keypoints_uv[:, 1], c='blue', s=10)  # plot second keypoints in blue
+        axs[1].axis('on')
+
+    # Save or show the image(s)
+    if img_filepath is not None:
         plt.savefig(img_filepath)
     else:
         plt.show()
-
 
 def plot_mask_on_image(hand_map_l, hand_map_r, image, img_filepath = None):
     # Convert binary masks to RGB color masks

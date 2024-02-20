@@ -2,7 +2,8 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-from config.config import *
+
+from config import config
 
 from network.sub_modules.conditionalDiffusion import *
 from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimation
@@ -18,15 +19,15 @@ class ThreeDimHandPoseEstimation(torch.nn.Module):
     def __init__(self, device = 'cpu'):
         super(ThreeDimHandPoseEstimation, self).__init__()
         self.device = device
-        self.resnet_extractor = ResNetFeatureExtractor(resnet_out_feature_dim)
+        self.resnet_extractor = ResNetFeatureExtractor(config.resnet_out_feature_dim)
         self.threeDimPoseEstimate = torch.nn.Sequential(
-            torch.nn.Linear(resnet_out_feature_dim, resnet_out_feature_dim//2),
+            torch.nn.Linear(config.resnet_out_feature_dim, config.resnet_out_feature_dim//2),
             torch.nn.ReLU(),
-            torch.nn.Linear(resnet_out_feature_dim//2, resnet_out_feature_dim//4),
+            torch.nn.Linear(config.resnet_out_feature_dim//2, config.resnet_out_feature_dim//4),
             torch.nn.ReLU(),
-            torch.nn.Linear(resnet_out_feature_dim//4, resnet_out_feature_dim//8),
+            torch.nn.Linear(config.resnet_out_feature_dim//4, config.resnet_out_feature_dim//8),
             torch.nn.ReLU(),
-            torch.nn.Linear(resnet_out_feature_dim//8, keypoint_num*3),#[x1, y1, z1, x2, y2, z2......] the ration of u v, x=u/width, y=v/height
+            torch.nn.Linear(config.resnet_out_feature_dim//8, config.keypoint_num*3),#[x1, y1, z1, x2, y2, z2......] the ration of u v, x=u/width, y=v/height
             torch.nn.Sigmoid()
         )
         self.forward_kinematics_module = ForwardKinematics(device = device)
@@ -50,15 +51,15 @@ class OnlyThreeDimHandPoseEstimation(torch.nn.Module):
     def __init__(self, device = 'cpu'):
         super(OnlyThreeDimHandPoseEstimation, self).__init__()
         self.device = device
-        self.resnet_extractor = ResNetFeatureExtractor(resnet_out_feature_dim)
+        self.resnet_extractor = ResNetFeatureExtractor(config.resnet_out_feature_dim)
         self.threeDimPoseEstimate = torch.nn.Sequential(
-            torch.nn.Linear(resnet_out_feature_dim, resnet_out_feature_dim//2),
+            torch.nn.Linear(config.resnet_out_feature_dim, config.resnet_out_feature_dim//2),
             torch.nn.ReLU(),
-            torch.nn.Linear(resnet_out_feature_dim//2, resnet_out_feature_dim//4),
+            torch.nn.Linear(config.resnet_out_feature_dim//2, config.resnet_out_feature_dim//4),
             torch.nn.ReLU(),
-            torch.nn.Linear(resnet_out_feature_dim//4, resnet_out_feature_dim//8),
+            torch.nn.Linear(config.resnet_out_feature_dim//4, config.resnet_out_feature_dim//8),
             torch.nn.ReLU(),
-            torch.nn.Linear(resnet_out_feature_dim//8, keypoint_num*3),#[x1, y1, z1, x2, y2, z2......] the ration of u v, x=u/width, y=v/height
+            torch.nn.Linear(config.resnet_out_feature_dim//8, config.keypoint_num*3),#[x1, y1, z1, x2, y2, z2......] the ration of u v, x=u/width, y=v/height
             torch.nn.Sigmoid()
         )
     
@@ -70,5 +71,5 @@ class OnlyThreeDimHandPoseEstimation(torch.nn.Module):
         pose3D_xyz = pose3D_xyz.view(b, -1, 3)
         uv21 = batch_project_xyz_to_uv(pose3D_xyz, camera_intrinsic_matrix)
 
-        refined_joint_coord = [pose3D_xyz, uv21]
+        refined_joint_coord = [pose3D_xyz, uv21, None]
         return refined_joint_coord, torch.tensor(0)

@@ -14,7 +14,7 @@ import shutil
 import GPUtil
 import time
 
-from config.config import *
+from config import config
 
 # from network.sub_modules.conditionalDiffusion import *
 # from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimation
@@ -30,8 +30,13 @@ from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
 from utils.plot_anno import *
 
+config.is_inference = True
+config.model_name = config.resume_weight_path.split('/')[-4]
+assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']
+
 class Worker(object):
     def __init__(self, gpu_index = None):
+        
         cuda_valid = torch.cuda.is_available()
         if cuda_valid:
             gpu_index = gpu_index  # # Here set the index of the GPU you want to use
@@ -43,21 +48,19 @@ class Worker(object):
         else:
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
-        
-        
-        assert model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']
-
+                    
         self.device = device
-
-        if model_name == 'TwoDimHandPose':
+        self.save_img = True
+        
+        if config.model_name == 'TwoDimHandPose':
             self.model = TwoDimHandPoseEstimation(device)
-        elif model_name == 'TwoDimHandPoseWithFK':
+        elif config.model_name == 'TwoDimHandPoseWithFK':
             self.model = TwoDimHandPoseWithFKEstimation(device)
-        elif model_name == 'DiffusionHandPose':
+        elif config.model_name == 'DiffusionHandPose':
             self.model = Diffusion3DHandPoseEstimation(device)
-        elif model_name == 'ThreeDimHandPose':
+        elif config.model_name == 'ThreeDimHandPose':
             self.model = ThreeDimHandPoseEstimation(device)
-        elif model_name == 'OnlyThreeDimHandPose':
+        elif config.model_name == 'OnlyThreeDimHandPose':
             self.model = OnlyThreeDimHandPoseEstimation(device)
 
         self.model.to(device)
@@ -65,11 +68,11 @@ class Worker(object):
 
         self.metric_mpjpe = MPJPE()
 
-        if dataset_name == 'RHD':
-            val_set = RHD_HandKeypointsDataset(root_dir=dataset_root_dir, set_type='evaluation')
-        self.val_loader = DataLoader(val_set, batch_size=infer_batch_size, shuffle=False, num_workers=15)
+        if config.dataset_name == 'RHD':
+            val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+        self.val_loader = DataLoader(val_set, batch_size=config.infer_batch_size, shuffle=False, num_workers=15)
 
-        save_log_dir = resume_weight_path[:resume_weight_path.find(resume_weight_path.split('/')[-1])]
+        save_log_dir = config.resume_weight_path[:config.resume_weight_path.find(config.resume_weight_path.split('/')[-1])]
         log_dir = sorted(glob.glob(os.path.join(save_log_dir, 'infer_*')), key=lambda x: int(x.split('_')[-1]))
         run_id = int(log_dir[-1].split('_')[-1]) + 1 if log_dir else 0
         self.exp_dir = os.path.join(save_log_dir, f'infer_{run_id:03d}')
@@ -88,9 +91,9 @@ class Worker(object):
         self.best_val_epoch_mpjpe = float('inf')
         self.start_epoch = 0
         
-        if not os.path.isfile(resume_weight_path):
-            raise RuntimeError("=> no checkpoint found at '{}'" .format(resume_weight_path))
-        checkpoint = torch.load(resume_weight_path, map_location=torch.device('cpu'))
+        if not os.path.isfile(config.resume_weight_path):
+            raise RuntimeError("=> no checkpoint found at '{}'" .format(config.resume_weight_path))
+        checkpoint = torch.load(config.resume_weight_path, map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint["state_dict"])
         # Using the following load method will cause each process to occupy an extra part of the video memory on GPU0. The reason is that the default load location is GPU0.
         # checkpoint = torch.load("checkpoint.pth")
@@ -102,7 +105,7 @@ class Worker(object):
         # else:
         #     self.model.load_state_dict(checkpoint['state_dict'])
 
-        print("=> loaded checkpoint '{}' (epoch {})".format(resume_weight_path, checkpoint['epoch']))
+        print("=> loaded checkpoint '{}' (epoch {})".format(config.resume_weight_path, checkpoint['epoch']))
 
 
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
@@ -141,7 +144,7 @@ class Worker(object):
             # if idx < 112:
             #     continue
             # print('idx', idx)
-            if hand_crop:
+            if config.hand_crop:
                 images = sample['image_crop']
             else:
                 images = sample['image']
@@ -169,9 +172,10 @@ class Worker(object):
 
         
             with torch.no_grad():
-                refined_joint_coord, loss_diffusion = self.model(images, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
-                keypoint_xyz21_pred, keypoint_uv21_pred = refined_joint_coord
-                if model_name == 'TwoDimHandPose':
+
+                refined_joint_coord, _ = self.model(images, camera_intrinsic_matrix, pose_x0, index_root_bone_length, keypoint_xyz_root)
+                keypoint_xyz21_pred, keypoint_uv21_pred, keypoint_uv21_from_2D_net = refined_joint_coord
+                if config.model_name == 'TwoDimHandPose':
                     mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
                 else:
                     # elif model_name == 'DiffusionHandPose' or model_name == 'ThreeDimHandPose':
@@ -179,7 +183,7 @@ class Worker(object):
                 
             if self.save_img:
                 img_filepath = os.path.join(self.img_save_dir, img_names[0].split('.')[0] + '_pre.jpg')
-                plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), img_filepath = img_filepath)
+                plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), img_filepath = img_filepath, second_keypoints_uv = keypoint_uv21_from_2D_net[0].cpu().numpy())
 
 
             # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'

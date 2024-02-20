@@ -1,6 +1,6 @@
 import torch
 import math
-from config.config import *
+from config import config
 
 '''
 Thumb: there are 3 DOF at each of thumb carpometacarpal(CMC) and metacarpophalangeal (MCP) joints.The thumb interphalangeal (IP) joint also has
@@ -47,7 +47,7 @@ E: pinky
 
 
 class BoneAnglePrediction(torch.nn.Module):
-    def __init__(self, device = 'cpu', input_dim = keypoint_num*3):
+    def __init__(self, device = 'cpu', input_dim = config.keypoint_num*3):
         super(BoneAnglePrediction, self).__init__()
         self.mlp1 = torch.nn.Sequential(
             torch.nn.Linear(input_dim, input_dim),
@@ -58,7 +58,7 @@ class BoneAnglePrediction(torch.nn.Module):
         self.mlp2 = torch.nn.Sequential(
             torch.nn.Linear(input_dim, input_dim),
             torch.nn.ReLU(),
-            torch.nn.Linear(input_dim, other_joint_angles_num),  # Predicting other joint angles 
+            torch.nn.Linear(input_dim, config.other_joint_angles_num),  # Predicting other joint angles 
             torch.nn.Sigmoid()
         )
     
@@ -76,14 +76,14 @@ class BoneAnglePrediction(torch.nn.Module):
     
 
 class BoneLengthPrediction(torch.nn.Module):
-    def __init__(self, device = 'cpu', input_dim = keypoint_num*3):
+    def __init__(self, device = 'cpu', input_dim = config.keypoint_num*3):
         super(BoneLengthPrediction, self).__init__()
         self.device = device
 
         self.mlp1 = torch.nn.Sequential(
             torch.nn.Linear(input_dim, input_dim),
             torch.nn.ReLU(),
-            torch.nn.Linear(input_dim, bone_length_num),  # Predicting length
+            torch.nn.Linear(input_dim, config.bone_length_num),  # Predicting length
             torch.nn.Sigmoid()
         )
 

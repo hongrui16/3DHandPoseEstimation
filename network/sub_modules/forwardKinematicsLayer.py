@@ -8,7 +8,7 @@ import math
 import sys
 sys.path.append('../..')  
 
-from config.config import *
+from config import config
 
     
 
@@ -327,7 +327,7 @@ class ForwardKinematics(nn.Module):
             kp_coord_xyz21_absolute[:,[i + 1, i + 2]] = kp_coord_xyz21_absolute[:,[i + 2, i + 1]]
 
         kp_coord_uv21 = self.project_xyz_to_uv(kp_coord_xyz21_absolute, self.camera_intrinsic_matrix)
-        return [kp_coord_xyz21_absolute, kp_coord_uv21]
+        return [kp_coord_xyz21_absolute, kp_coord_uv21, None]
     
 
     def convert_rel_normalized_to_absolute(self, kp_coord_xyz21_rel_normed, index_root_bone_length, kp_coord_xyz_root):
@@ -644,7 +644,7 @@ class ForwardKinematicsMatchGTOrder(nn.Module):
             kp_coord_xyz21_absolute[:,[i + 1, i + 2]] = kp_coord_xyz21_absolute[:,[i + 2, i + 1]]
 
         kp_coord_uv21 = self.project_xyz_to_uv(kp_coord_xyz21_absolute, self.camera_intrinsic_matrix)
-        return [kp_coord_xyz21_absolute, kp_coord_uv21]
+        return [kp_coord_xyz21_absolute, kp_coord_uv21, None]
 
     def convert_rel_normalized_to_absolute(self, kp_coord_xyz21_rel_normed, index_root_bone_length, kp_coord_xyz_root):
         """

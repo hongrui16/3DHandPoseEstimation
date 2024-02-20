@@ -6,7 +6,7 @@ import sys
 
 
 from network.sub_modules.conditionalDiffusion import *
-from config.config import *
+from config import config
 
 
 
@@ -19,16 +19,16 @@ class DiffusionJointEstimation(torch.nn.Module):
         dim = 64,
         dim_mults = (1, 2, 4, 8),
         channels = 1,
-        condition_feat_dim = condition_feat_dim
+        condition_feat_dim = config.condition_feat_dim
         )
 
         self.diffusionModel = GaussianDiffusion1D(
             self.Unet1D_Model,
-            seq_length = keypoint_num*3,
-            timesteps = num_timesteps,
-            sampling_timesteps= num_sampling_timesteps,
+            seq_length = config.keypoint_num*3,
+            timesteps = config.num_timesteps,
+            sampling_timesteps= config.num_sampling_timesteps,
         )
-        self.batch_size = batch_size
+        self.batch_size = config.batch_size
     
     def diffusion_loss(self, x, resnet_features):
         # Concatenate image features, 3D points, and time-step information
