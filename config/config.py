@@ -66,6 +66,6 @@ other_joint_angles_num = 23
 resnet_out_feature_dim = 1024
 
 '''## MANO parameters'''
-mano_right_hand_path = '../config/mano/models/MANO_RIGHT.pkl'
+mano_right_hand_path = 'config/mano/models/MANO_RIGHT.pkl'
 mano_pose_num = 45
 mano_beta_num = 10 ### do not change this

@@ -38,8 +38,10 @@ class MANO3DHandPoseEstimation(torch.nn.Module):
         for i in range(1, 21, 4):
             mano_joints[:,[i, i + 3]] = mano_joints[:,[i + 3, i]]
             mano_joints[:,[i + 1, i + 2]] = mano_joints[:,[i + 2, i + 1]]
-        # print('mano_joints:', mano_joints)
+        # print('mano_joints:', mano_joints.shape)
         mano_joints_root = mano_joints[:, 0, :]  # this is the palm coord
+        mano_joints_root = mano_joints_root.unsqueeze(1)  # [bs, 3] -> [bs, 1, 3]
+        # print('mano_joints_root:', mano_joints_root.shape)
         mano_joints_rel = mano_joints - mano_joints_root # relative coords in metric coords
         # print('mano_joints_rel:', mano_joints_rel)
         scale = torch.sqrt((mano_joints_rel[:, 12, :]).pow(2).sum(dim=-1))
