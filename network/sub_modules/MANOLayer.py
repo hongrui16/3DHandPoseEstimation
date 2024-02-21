@@ -239,12 +239,11 @@ class ManoLayer(nn.Module):
 
 
 
-def build_sequtial(input_dim, devide, output_dim):
+def build_sequtial(input_dim, output_dim, devide = 4):
     sequential = [] # Create an empty list to store layers
 
     # Calculate the minimum number of times that dimensionality can be reduced until the dimensionality reduction result is no less than output_dim
     quotient = 0
-    devide = 4
     temp_dim = input_dim
     while temp_dim // devide >= output_dim:
         temp_dim //= devide
@@ -271,7 +270,7 @@ def build_sequtial(input_dim, devide, output_dim):
 class MANOBetasPrediction(torch.nn.Module):
     def __init__(self, device = 'cpu', input_dim = None):
         super(MANOBetasPrediction, self).__init__()        
-        sequential = build_sequtial(input_dim, 4, config.mano_beta_num)
+        sequential = build_sequtial(input_dim, config.mano_beta_num, 4)
         #Create Sequential model
         self.mlp = torch.nn.Sequential(*sequential)
 
@@ -285,11 +284,11 @@ class MANOThetaPrediction(torch.nn.Module):
     def __init__(self, device = 'cpu', input_dim = None):
         super(MANOThetaPrediction, self).__init__()
         rot_dim = 3
-        sequential = build_sequtial(input_dim, 4, rot_dim)
+        sequential = build_sequtial(input_dim, rot_dim, 4)
         #Create Sequential model
         self.mlp1 = torch.nn.Sequential(*sequential)
 
-        sequential = build_sequtial(input_dim, 2, config.mano_pose_num)
+        sequential = build_sequtial(input_dim, config.mano_pose_num, 2)
         #Create Sequential model
         self.mlp2 = torch.nn.Sequential(*sequential)
         
