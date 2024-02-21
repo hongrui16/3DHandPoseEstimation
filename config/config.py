@@ -27,31 +27,11 @@ calculate_scoremap=False
 model_name = 'MANO3DHandPose'
 
 
-'''## training parameters'''
-save_log_dir = 'logs'
-max_epoch = 100
-finetune = False
-batch_size = 480
-gpu_idx = None
-# gpu_idx = 1
-uv_from_xD = 3 ## this is for where to get output of UV coordinates in TwoDimHandPoseWithFKEstimation, x = 2: from 2D keypoints directly; x = 3: from 3D keypoints projections; x = 2.5: 1/2 from 2D keypoints directly, 1/2 from 3D keypoints projections
-is_inference = False
-resume_weight_path = None
-
-
-'''## inference parameters'''
-infer_batch_size = 100
-# infer_resume_weight_path = 'logs/TwoDimHandPose/RHD/run_000/DF_model_best.pth.tar'
-# infer_resume_weight_path = 'logs/ThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
-# infer_resume_weight_path = 'logs/OnlyThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
-infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-15-52/DF_model_best.pth.tar'
-infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-16-45/DF_model_best.pth.tar'
-infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-17-45/DF_model_best.pth.tar'
-
-
 
 '''## general parameters'''
 keypoint_num = 21
+gpu_idx = None
+gpu_idx = 3
 
 
 '''## diffusion3DHandPoseEstimation parameters '''
@@ -67,5 +47,31 @@ resnet_out_feature_dim = 1024
 
 '''## MANO parameters'''
 mano_right_hand_path = 'config/mano/models/MANO_RIGHT.pkl'
-mano_pose_num = 45
+mano_pose_num = 10 #45
 mano_beta_num = 10 ### do not change this
+
+
+'''## training parameters'''
+save_log_dir = 'logs'
+max_epoch = 100
+finetune = False
+batch_size = 480
+# gpu_idx = 1
+uv_from_xD = 3 ## this is for where to get output of UV coordinates in TwoDimHandPoseWithFKEstimation, x = 2: from 2D keypoints directly; x = 3: from 3D keypoints projections; x = 2.5: 1/2 from 2D keypoints directly, 1/2 from 3D keypoints projections
+is_inference = False
+resume_weight_path = None
+
+
+'''## inference parameters'''
+infer_batch_size = 100
+# infer_resume_weight_path = 'logs/TwoDimHandPose/RHD/run_000/DF_model_best.pth.tar'
+# infer_resume_weight_path = 'logs/ThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
+# infer_resume_weight_path = 'logs/OnlyThreeDimHandPose/RHD/run_000/DF_model_best.pth.tar'
+infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-15-52/DF_model_best.pth.tar'
+infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-16-45/DF_model_best.pth.tar'
+infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-17-45/DF_model_best.pth.tar'
+infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_model_best.pth.tar'
+infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_checkpoint.pth.tar'
+infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-21-23-46/DF_checkpoint.pth.tar'
+
+

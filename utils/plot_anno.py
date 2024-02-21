@@ -6,18 +6,21 @@ import time
 import matplotlib.pyplot as plt
 import torch 
 
-def plot_uv_on_image(keypoints_uv, image, keypoints_vis = None, horizon_flip = False, img_filepath = None, second_keypoints_uv = None):
+def plot_uv_on_image(keypoints_uv, image, keypoints_vis = None, horizon_flip = False, gt_uv21 = None, img_filepath = None, second_keypoints_uv = None):
     # print(f'keypoints_vis.shape: {keypoints_vis.shape}')
     # Adjust keypoints to ensure they are within the image boundaries of 320x320
     if not keypoints_vis is None:
         keypoints_uv = keypoints_uv[keypoints_vis]
+        gt_uv21 = gt_uv21[keypoints_vis]
     
     if horizon_flip:
         image = image[:,::-1]
         h, w, _ = image.shape
         keypoints_uv[:, 0] = w - keypoints_uv[:, 0]
-        second_keypoints_uv[:, 0] = w - second_keypoints_uv[:, 0]
-        
+        if not second_keypoints_uv is None:
+            second_keypoints_uv[:, 0] = w - second_keypoints_uv[:, 0]
+        if not gt_uv21 is None:
+            gt_uv21[:, 0] = w - gt_uv21[:, 0]
     # Prepare to plot the keypoints on the image
     fig, axs = plt.subplots(1, 2 if second_keypoints_uv is not None else 1, figsize=(12 if second_keypoints_uv is not None else 6, 6))
     axs = [axs] if not isinstance(axs, np.ndarray) else axs
@@ -25,6 +28,8 @@ def plot_uv_on_image(keypoints_uv, image, keypoints_vis = None, horizon_flip = F
     # Plot the first set of keypoints
     axs[0].imshow(image)
     axs[0].scatter(keypoints_uv[:, 0], keypoints_uv[:, 1], c='red', s=10)  # plot keypoints in red
+    if not gt_uv21 is None:
+        axs[0].scatter(gt_uv21[:, 0], gt_uv21[:, 1], c='green', s=10)  # plot keypoints in green
     axs[0].axis('on')  # remove axes for better visualization
     
     # Plot the second set of keypoints, if provided

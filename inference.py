@@ -24,7 +24,7 @@ from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
 from network.twoDimHandPoseEstimation import *
 from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
 from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
-
+from network.sub_modules.MANOLayer import ManoLayer
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
@@ -33,7 +33,7 @@ from utils.plot_anno import *
 
 config.is_inference = True
 config.model_name = config.infer_resume_weight_path.split('/')[-4]
-assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK'， "MANO3DHandPose"]
+assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK', "MANO3DHandPose"]
 
 class Worker(object):
     def __init__(self, gpu_index = None):
@@ -66,8 +66,10 @@ class Worker(object):
         elif config.model_name == 'MANO3DHandPose':
             self.model = MANO3DHandPoseEstimation(device)
 
+        
         self.model.to(device)
-            
+
+        # self.mano_layer = ManoLayer(device, config.mano_right_hand_path).to(device)        
 
         self.metric_mpjpe = MPJPE()
 
@@ -100,7 +102,6 @@ class Worker(object):
         # model.load_state_dict(checkpoint["state_dict"])
         # Using the following load method will cause each process to occupy an extra part of the video memory on GPU0. The reason is that the default load location is GPU0.
         # checkpoint = torch.load("checkpoint.pth")
-
         self.model.load_state_dict(checkpoint['state_dict'])
         
         # if cuda_valid:
@@ -183,11 +184,19 @@ class Worker(object):
                 else:
                     # elif model_name == 'DiffusionHandPose' or model_name == 'ThreeDimHandPose':
                     mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_vis21_gt) 
-                
+            
+            # pre_joint_mesh = self.mano_layer.joint_meshes(keypoint_xyz21_pred[:1])
+            # gt_joint_mesh = self.mano_layer.joint_meshes(keypoint_xyz21_gt[:1])
+            # pre_joint_mesh[0].show()
+            # gt_joint_mesh[0].show()
+
+
             if self.save_img:
                 img_filepath = os.path.join(self.img_save_dir, img_names[0].split('.')[0] + '_pre.jpg')
-                plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), img_filepath = img_filepath, second_keypoints_uv = keypoint_uv21_from_2D_net[0].cpu().numpy())
-
+                if config.model_name in ['TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']:
+                    plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), gt_uv21 = keypoint_uv21_gt[0].cpu().numpy(), img_filepath = img_filepath, second_keypoints_uv = keypoint_uv21_from_2D_net[0].cpu().numpy())
+                else:
+                    plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), gt_uv21 = keypoint_uv21_gt[0].cpu().numpy(), img_filepath = img_filepath)
 
             # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'
             loginfo = f'{formatted_split} Iter: {idx:05d}/{num_iter:05d}, MPJPE: {mpjpe.item():.4f}'

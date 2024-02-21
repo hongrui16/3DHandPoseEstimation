@@ -328,7 +328,7 @@ if __name__ == "__main__":
 
     vertices, joint = model.rot_pose_beta_to_mesh(global_orient, pose, betas)
     # print('vertices:', vertices)
-    print('joint:', joint.shape)
+    # print('joint:', joint.shape) #torch.Size([1, 21, 3])
     trans = torch.tensor([128, 128], device=device).view(1, 1, 2)  # add necessary dimensions
     scale = torch.tensor([540], device=device).view(1, 1, 1)  # add necessary dimensions
 
