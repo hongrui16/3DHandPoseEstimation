@@ -89,17 +89,17 @@ class LossCalculation(nn.Module):
         if self.comp_xyz_loss:
             loss_xyz = self.compute_3d_coord_loss(pre_xyz, gt_xyz, keypoint_vis)
         else:
-            loss_xyz = torch.tensor(0)
+            loss_xyz = torch.tensor(0, device=self.device)
 
         if self.comp_uv_loss:
             loss_uv = self.compute_uv_coord_loss(pre_uv, gt_uv, keypoint_vis)
         else:
-            loss_uv = torch.tensor(0)
+            loss_uv = torch.tensor(0, device=self.device)
 
         if self.comp_contrastive_loss:
             loss_contrast = self.compute_contrastive_loss(feat1, feat2, label)
         else:
-            loss_contrast = torch.tensor(0)
+            loss_contrast = torch.tensor(0, device=self.device)
         
         # loss = loss_xyz + loss_uv + loss_contrast
         return loss_xyz, loss_uv, loss_contrast

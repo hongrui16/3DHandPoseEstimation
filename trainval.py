@@ -68,9 +68,12 @@ class Worker(object):
             self.model = MANO3DHandPoseEstimation(device)
             comp_xyz_loss = True
         
-
+        if not config.compute_uv_loss:
+            comp_uv_loss = False
+        else:
+            comp_uv_loss = True
             
-        self.criterion = LossCalculation(device=device, comp_xyz_loss = comp_xyz_loss)
+        self.criterion = LossCalculation(device=device, comp_xyz_loss = comp_xyz_loss, comp_uv_loss = comp_uv_loss)
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 

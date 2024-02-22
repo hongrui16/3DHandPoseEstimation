@@ -24,17 +24,17 @@ calculate_scoremap=False
 # model_name = 'ThreeDimHandPose'
 # model_name = 'OnlyThreeDimHandPose'
 # model_name = 'TwoDimHandPoseWithFK'
-# model_name = 'MANO3DHandPose'
-model_name = 'Hand3DPoseNet'
+model_name = 'MANO3DHandPose'
+# model_name = 'Hand3DPoseNet'
 
 
 
 '''## general parameters'''
 keypoint_num = 21
 gpu_idx = None
-gpu_idx = 0
+gpu_idx = 2
 resnet_out_feature_dim = 1024
-
+compute_uv_loss = False
 
 '''## diffusion3DHandPoseEstimation parameters '''
 condition_feat_dim = 256
@@ -56,10 +56,10 @@ save_log_dir = 'logs'
 max_epoch = 100
 finetune = False
 batch_size = 480
-# gpu_idx = 1
 uv_from_xD = 3 ## this is for where to get output of UV coordinates in TwoDimHandPoseWithFKEstimation, x = 2: from 2D keypoints directly; x = 3: from 3D keypoints projections; x = 2.5: 1/2 from 2D keypoints directly, 1/2 from 3D keypoints projections
 is_inference = False
 resume_weight_path = None
+# resume_weight_path = 'logs/Hand3DPoseNet/RHD/run_2024-02-22-03-08-39/DF_model_best.pth.tar'
 
 
 '''## inference parameters'''
