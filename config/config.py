@@ -24,14 +24,16 @@ calculate_scoremap=False
 # model_name = 'ThreeDimHandPose'
 # model_name = 'OnlyThreeDimHandPose'
 # model_name = 'TwoDimHandPoseWithFK'
-model_name = 'MANO3DHandPose'
+# model_name = 'MANO3DHandPose'
+model_name = 'Hand3DPoseNet'
 
 
 
 '''## general parameters'''
 keypoint_num = 21
 gpu_idx = None
-gpu_idx = 3
+gpu_idx = 0
+resnet_out_feature_dim = 1024
 
 
 '''## diffusion3DHandPoseEstimation parameters '''
@@ -42,14 +44,12 @@ keypoint_feat_Ch = 1
 bone_length_num = 20
 other_joint_angles_num = 23
 
-## twoDimHandPoseEstimation parameters
-resnet_out_feature_dim = 1024
 
 '''## MANO parameters'''
 mano_right_hand_path = 'config/mano/models/MANO_RIGHT.pkl'
 mano_pose_num = 10 #45
 mano_beta_num = 10 ### do not change this
-
+joint_order_switched = True
 
 '''## training parameters'''
 save_log_dir = 'logs'

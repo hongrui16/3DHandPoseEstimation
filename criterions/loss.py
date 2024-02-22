@@ -60,7 +60,7 @@ class ContrastiveLoss(nn.Module):
 
 
 class LossCalculation(nn.Module):
-    def __init__(self, device = 'cpu', loss_type = 'L2', comp_xyz_loss = True, comp_uv_loss = True, comp_contrastive_loss = False):
+    def __init__(self, device = 'cpu', loss_type = 'L2', comp_xyz_loss = True, comp_uv_loss = False, comp_contrastive_loss = False):
         super(LossCalculation, self).__init__()
         assert loss_type in ['L2', 'L2']
         self.device = device

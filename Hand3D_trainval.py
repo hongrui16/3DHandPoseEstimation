@@ -18,10 +18,11 @@ from config import config
 # from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimation
 # from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
 # from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
-from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
-from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation, TwoDimHandPoseWithFKEstimation
-from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
-from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
+# from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
+# from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation, TwoDimHandPoseWithFKEstimation
+# from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
+# from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
+from network.Hand3DPoseNet import Hand3DPoseNet
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
@@ -29,6 +30,7 @@ from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
 
 config.is_inference = False
+config.model_name = 'Hand3DPoseNet'
 
 class Worker(object):
     def __init__(self, gpu_index = None):
@@ -45,28 +47,28 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK', 'MANO3DHandPose']
+        assert config.model_name in ['Hand3DPoseNet']
 
         self.device = device
 
-        if config.model_name == 'TwoDimHandPose':
-            self.model = TwoDimHandPoseEstimation(device)
-            comp_xyz_loss = False
-        elif config.model_name == 'TwoDimHandPoseWithFK':
-            self.model = TwoDimHandPoseWithFKEstimation(device)
-            comp_xyz_loss = True 
-        elif config.model_name == 'DiffusionHandPose':
-            self.model = Diffusion3DHandPoseEstimation(device)
+        if config.model_name == 'Hand3DPoseNet':
+            self.model = Hand3DPoseNet(device)
             comp_xyz_loss = True
-        elif config.model_name == 'ThreeDimHandPose':
-            self.model = ThreeDimHandPoseEstimation(device)
-            comp_xyz_loss = True
-        elif config.model_name == 'OnlyThreeDimHandPose':
-            self.model = OnlyThreeDimHandPoseEstimation(device)
-            comp_xyz_loss = True 
-        elif config.model_name == 'MANO3DHandPose':
-            self.model = MANO3DHandPoseEstimation(device)
-            comp_xyz_loss = True
+        # elif config.model_name == 'TwoDimHandPoseWithFK':
+        #     self.model = TwoDimHandPoseWithFKEstimation(device)
+        #     comp_xyz_loss = True 
+        # elif config.model_name == 'DiffusionHandPose':
+        #     self.model = Diffusion3DHandPoseEstimation(device)
+        #     comp_xyz_loss = True
+        # elif config.model_name == 'ThreeDimHandPose':
+        #     self.model = ThreeDimHandPoseEstimation(device)
+        #     comp_xyz_loss = True
+        # elif config.model_name == 'OnlyThreeDimHandPose':
+        #     self.model = OnlyThreeDimHandPoseEstimation(device)
+        #     comp_xyz_loss = True 
+        # elif config.model_name == 'MANO3DHandPose':
+        #     self.model = MANO3DHandPoseEstimation(device)
+        #     comp_xyz_loss = True
         
 
             
@@ -171,20 +173,6 @@ class Worker(object):
         epoch_loss = []
         epoch_mpjpe = []
 
-        # data_iter = iter(tbar)  # 创建 DataLoader 的迭代器
-        # for idx in tqdm(range(len(tbar))):
-        #     start_time = time.time()  # 开始时间
-
-        #     # 使用 next 从 DataLoader 获取下一个 batch
-        #     try:
-        #         sample = next(data_iter)
-        #     except StopIteration:
-        #         break  # 如果 DataLoader 结束，则退出循环
-
-        #     end_time = time.time()  # 结束时间
-        #     elapsed_time = end_time - start_time  # 计算所用时间
-        #     print(f"Iteration {idx} took {elapsed_time} seconds to retrieve one batch.") # 6 ~ 10 s
-
 
 
         for idx, sample in enumerate(tbar): # 6 ~ 10 s
@@ -198,38 +186,28 @@ class Worker(object):
             else:
                 image = sample['image'].to(self.device)
 
-            
             keypoint_vis21_gt = sample['keypoint_vis21'].to(self.device) # visiable points mask
-            index_root_bone_length = sample['keypoint_scale'].to(self.device) #scale length
-            keypoint_xyz_root = sample['keypoint_xyz_root'].to(self.device)
-            keypoint_uv21_gt = sample['keypoint_uv21'].to(self.device) # uv coordinate
-            keypoint_xyz21_gt = sample['keypoint_xyz21'].to(self.device) # xyz absolute coordinate
-            keypoint_xyz21_rel_normed_gt = sample['keypoint_xyz21_rel_normed'].to(self.device) ## normalized xyz coordinates
+            kp_coord_xyz21_rel_can_gt = sample['kp_coord_xyz21_rel_can'].to(self.device) #scale length
+            rot_mat_gt = sample['rot_mat'].to(self.device) #scale length
+            # keypoint_xyz_root = sample['keypoint_xyz_root'].to(self.device)
+            # keypoint_uv21_gt = sample['keypoint_uv21'].to(self.device) # uv coordinate
+            # keypoint_xyz21_gt = sample['keypoint_xyz21'].to(self.device) # xyz absolute coordinate
+            # keypoint_xyz21_rel_normed_gt = sample['keypoint_xyz21_rel_normed'].to(self.device) ## normalized xyz coordinates
 
-            camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
+            # camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
             
-            
-
-            bs, num_points, c = keypoint_xyz21_rel_normed_gt.shape
-            # print('keypoint_xyz21_rel_normed_gt.shape', keypoint_xyz21_rel_normed_gt.shape)
-            pose_x0 = keypoint_xyz21_rel_normed_gt.view(bs, -1, num_points*c)
-            # print('pose_x0.shape', pose_x0.shape)
-            # print('index_root_bone_length.shape', index_root_bone_length.shape)
-
+        
             self.optimizer.zero_grad()
             if split == 'training':
-                refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
-                keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
+                result = self.model(image)
+                coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
-                    keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
-                    if config.model_name == 'TwoDimHandPose':
-                        mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
-                    else:
-                        # elif model_name == 'DiffusionHandPose' or model_name == 'ThreeDimHandPose':
-                        mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_vis21_gt)
+                    result = self.model(image)
+                    coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
+
+                    mpjpe = self.metric_mpjpe(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, keypoint_vis21_gt)
             
             # print('keypoint_xyz21_gt[0]', keypoint_xyz21_gt[0])
             # print('keypoint_xyz21_pred[0]', keypoint_xyz21_pred[0])
@@ -238,19 +216,22 @@ class Worker(object):
             # print('keypoint_uv21_pred[0]', keypoint_uv21_pred[0])
             # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
 
-            loss_xyz, loss_uv, loss_contrast = self.criterion(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt) 
-            loss = loss_xyz + loss_uv/100000 + loss_contrast + loss_diffusion
+            loss_xyz, _, _ = self.criterion(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, None, None, keypoint_vis21_gt) 
+            loss_rot = torch.mean(torch.square(rot_mat_pred - rot_mat_gt))
+            # print('loss_xyz', loss_xyz)
+            # print('loss_rot', loss_rot)
+            loss = loss_xyz + loss_rot
             if split == 'training':
                 loss.backward()
                 self.optimizer.step()
 
             if split == 'training':
                 # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_uv: {loss_uv.item():.4f}, L_diff: {loss_diffusion.item():.4f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_rot: {loss_rot.item():.4f}'
                 tbar.set_description(loginfo)
             else:
                 # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_uv: {loss_uv.item():.4f}, L_diff: {loss_diffusion.item():.4f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_rot: {loss_rot.item():.4f}'
                 tbar.set_description(loginfo)
 
             # if idx % 20 == 0:

@@ -38,18 +38,20 @@ Joint order in MANO is as follows:
 <img src="imgs/MANO_Joint_Order.png" width="300" height="300">
 
 ## 8 Relative References
-[contra-hand](https://github.com/lmb-freiburg/contra-hand/tree/main)
+Learning to Estimate 3D Hand Pose from Single RGB Images [official code](https://github.com/lmb-freiburg/hand3d); [pytorch code](https://github.com/ajdillhoff/colorhandpose3d-pytorch)
 
-[obman_train](https://github.com/hassony2/obman_train/tree/master)
+[Learning Joint Reconstruction of Hands and Manipulated Objects](https://github.com/hassony2/obman_train/tree/master)
+
+[3D Hand Shape and Pose from Images in the Wild](https://github.com/boukhayma/3dhand)
 
 [manopth](https://github.com/hassony2/manopth)
 
 [MANO](https://github.com/otaheri/MANO)
 
+
+[3D Hand Pose Estimation from Single RGB Camera](https://github.com/OlgaChernytska/3D-Hand-Pose-Estimation)
+
+[Contrastive Representation Learning for Hand Shape Estimation](https://github.com/lmb-freiburg/contra-hand/tree/main)
+
 [Minimal-Hand-pytorch](https://github.com/MengHao666/Minimal-Hand-pytorch/tree/main)
 
-[hand3d](https://github.com/lmb-freiburg/hand3d)
-
-[3dhand](https://github.com/boukhayma/3dhand)
-
-[3D-Hand-Pose-Estimation](https://github.com/OlgaChernytska/3D-Hand-Pose-Estimation)

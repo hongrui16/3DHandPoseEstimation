@@ -35,9 +35,11 @@ class MANO3DHandPoseEstimation(torch.nn.Module):
     def match_mano_to_RHD(self, mano_joints):
         # mano_joints: [batch, 21, 3]
         # return: [batch, 21, 3]
-        for i in range(1, 21, 4):
-            mano_joints[:,[i, i + 3]] = mano_joints[:,[i + 3, i]]
-            mano_joints[:,[i + 1, i + 2]] = mano_joints[:,[i + 2, i + 1]]
+        if not config.joint_order_switched:
+            # print('config.joint_order_switched', config.joint_order_switched)
+            for i in range(1, 21, 4):
+                mano_joints[:,[i, i + 3]] = mano_joints[:,[i + 3, i]]
+                mano_joints[:,[i + 1, i + 2]] = mano_joints[:,[i + 2, i + 1]]
         # print('mano_joints:', mano_joints.shape)
         mano_joints_root = mano_joints[:, 0, :]  # this is the palm coord
         mano_joints_root = mano_joints_root.unsqueeze(1)  # [bs, 3] -> [bs, 1, 3]

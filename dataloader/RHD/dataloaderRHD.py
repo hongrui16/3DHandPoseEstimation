@@ -20,7 +20,7 @@ from utils import transformations as tr
 
 from utils.plot_anno import *
 from utils.general_torch import crop_image_from_xy_torch
-# from utils.canonical_trafo import canonical_trafo, flip_right_hand
+from utils.canonical_trafo import canonical_trafo, flip_right_hand
 from utils.relative_trafo_torch import bone_rel_trafo
 from utils.coordinate_trans import camera_xyz_to_uv
 
@@ -229,14 +229,13 @@ class RHD_HandKeypointsDataset(Dataset):
         keypoint_xyz21_local = bone_rel_trafo(data_dict['keypoint_xyz21_rel_normed'])
         data_dict['keypoint_xyz21_local'] = keypoint_xyz21_local.squeeze() # 
 
+
         # calculate viewpoint and coords in canonical coordinates
-        '''
-        keypoint_xyz21_rel_can, rot_mat = canonical_trafo(data_dict['keypoint_xyz21_normed'])
-        keypoint_xyz21_rel_can, rot_mat = tf.squeeze(keypoint_xyz21_rel_can), tf.squeeze(rot_mat)
-        keypoint_xyz21_rel_can = flip_right_hand(keypoint_xyz21_rel_can, tf.logical_not(cond_left))
-        data_dict['keypoint_xyz21_can'] = keypoint_xyz21_rel_can
-        data_dict['rot_mat'] = tf.matrix_inverse(rot_mat)
-        '''
+        kp_coord_xyz21_rel_can, rot_mat = canonical_trafo(data_dict['keypoint_xyz21_rel_normed'])
+        kp_coord_xyz21_rel_can, rot_mat = torch.squeeze(kp_coord_xyz21_rel_can), torch.squeeze(rot_mat)
+        # kp_coord_xyz21_rel_can = flip_right_hand(kp_coord_xyz21_rel_can, torch.logical_not(cond_left))
+        data_dict['kp_coord_xyz21_rel_can'] = kp_coord_xyz21_rel_can
+        data_dict['rot_mat'] = torch.inverse(rot_mat)
         
         # Set of 21 for visibility
         keypoint_vis_left = keypoint_vis[:21]
@@ -480,7 +479,22 @@ class RHD_HandKeypointsDataset(Dataset):
             data_dict['hand_parts'] = tensor_stack_cropped[:, :, 3].long()  # Assuming hand_parts needs to be a long tensor
             data_dict['hand_mask'] = tensor_stack_cropped[:, :, 4:].long()  # Assuming hand_mask needs to be a long tensor
 
-        
+        if config.model_name == 'MANO3DHandPose' or config.joint_order_switched:
+            keypoint_vis21 = data_dict['keypoint_vis21']
+            keypoint_vis21 = self.switch_joint_order(keypoint_vis21)
+
+            keypoint_uv21 = data_dict['keypoint_uv21']
+            keypoint_uv21 = self.switch_joint_order(keypoint_uv21)
+            
+            keypoint_xyz21 = data_dict['keypoint_xyz21']
+            keypoint_xyz21 = self.switch_joint_order(keypoint_xyz21)
+
+            data_dict['keypoint_vis21'] = keypoint_vis21
+            data_dict['keypoint_uv21'] = keypoint_uv21
+            data_dict['keypoint_xyz21'] = keypoint_xyz21
+
+            config.joint_order_switched = True
+
         data_dict['img_name'] = img_name
         names, tensors = zip(*data_dict.items())
         # print(f'cost {time.time() - start_time:.2f}') #0.02
@@ -539,13 +553,16 @@ class RHD_HandKeypointsDataset(Dataset):
         return scoremap
 
 
-
-
+    def switch_joint_order(self, joints):
+        for i in range(1, 21, 4):
+            joints[[i, i + 3]] = joints[[i + 3, i]]
+            joints[[i + 1, i + 2]] = joints[[i + 2, i + 1]]
+        return joints
 
 if __name__ == '__main__':
 
     dataset_dir = '../../dataset/RHD'
-    # dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+    dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
     num_workers = 15
     batch_size=480
     num_workers = 1
@@ -610,12 +627,14 @@ if __name__ == '__main__':
         # print('keypoints_uv_visible:', keypoints_uv_visible)
     
         # print('keypoints_xyz.shape:', keypoints_xyz.shape) # torch.Size([BS, 42, 3])
-        # print('keypoint_uv21.shape:', keypoint_uv21.shape) # torch.Size([BS, 21, 3])
+        # print('keypoint_uv21.shape:', keypoint_uv21.shape) # torch.Size([1, 21, 2])
+        # print('keypoint_vis21.shape:', keypoint_vis21.shape) # torch.Size([1, 21, 1])
+        # print('keypoint_xyz21.shape:', keypoint_xyz21.shape) # torch.Size([1, 21, 3])
         # print('keypoints_uv.shape:', keypoints_uv.shape) # torch.Size([BS, 42, 2])
         # # print('keypoints_uv_visible.shape:', keypoints_uv_visible.shape) # torch.Size([BS, 42, 1])
         # print('camera_matrices.shape:', camera_matrices.shape) # torch.Size([BS, 3, 3])
         # print('camera_matrices\n', camera_matrices)
-        print('index_root_bone_length.shape:', index_root_bone_length.shape) # torch.Size([BS, 1])
+        # print('index_root_bone_length.shape:', index_root_bone_length.shape) # torch.Size([BS, 1])
         # print('')
         # # print('keypoints_xyz[:, :3]', keypoints_xyz[:, :3])
         # print('keypoint_xyz21[:, :6]\n', keypoint_xyz21[:, :6])
@@ -626,17 +645,21 @@ if __name__ == '__main__':
         # print('keypoint_xyz21_rel_normed', keypoint_xyz21_rel_normed)
         # print('keypoint_uv21', keypoint_uv21)
         # print('keypoint_scale', keypoint_scale)
-        print('keypoint_xyz_root', keypoint_xyz_root, keypoint_xyz_root.shape)
+        # print('keypoint_xyz_root', keypoint_xyz_root, keypoint_xyz_root.shape)
         
         # print('images.shape:', images.shape) # torch.Size([BS, 3, 3])
         # print('image_crop.shape:', image_crop.shape) # torch.Size([BS, 3, 3])
-        print('keypoint_xyz21.shape',keypoint_xyz21.shape)
+        # print('keypoint_xyz21.shape',keypoint_xyz21.shape)
         new_pro_uv21 = camera_xyz_to_uv(keypoint_xyz21[0], camera_matrices[0])
         print('new_pro_uv21.shape',new_pro_uv21.shape)
         # plot_uv_on_image(new_pro_uv21.numpy(), (255*(0.5+image_crop[0].permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis21[0].numpy().squeeze())
         print('keypoint_uv21[0,:3]',keypoint_uv21[0,:3])
         print('new_pro_uv21[:3]',new_pro_uv21[:3])
-        
+
+        kp_coord_xyz21_rel_can = batch['kp_coord_xyz21_rel_can']
+        rot_mat = batch['rot_mat']
+        print('kp_coord_xyz21_rel_can.shape',kp_coord_xyz21_rel_can.shape)
+        print('rot_mat.shape',rot_mat.shape)
         # break
         print(f'i: {i}\n')
         i += 1
