@@ -1,4 +1,4 @@
-# DenoisingDiffusion3DHandPoseEstimation
+# 3DHandPoseEstimation
 This a code implementation for 3D hand pose estimation, which contains a bunch of networks.
 <!-- 
 ## Install library packages
