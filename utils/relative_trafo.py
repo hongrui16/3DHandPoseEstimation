@@ -1,149 +1,131 @@
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
-
+import torch
 
 def _stitch_mat_from_vecs(vector_list):
-    """ Stitches a given list of vectors into a 4x4 matrix.
-
-        Input:
-            vector_list: list of 16 tensors, which will be stitched into a matrix. list contains matrix elements
-                in a row-first fashion (m11, m12, m13, m14, m21, m22, m23, m24, ...). Length of the vectors has
-                to be the same, because it is interpreted as batch dimension.
     """
+    Stitches a given list of vectors into a 4x4 matrix in PyTorch.
 
+    Input:
+        vector_list: list of 16 tensors, which will be stitched into a matrix.
+                     List contains matrix elements in a row-first fashion 
+                     (m11, m12, m13, m14, m21, m22, m23, m24, ...).
+                     The length of the vectors has to be the same, 
+                     interpreted as batch dimension.
+    """
     assert len(vector_list) == 16, "There have to be exactly 16 tensors in vector_list."
-    batch_size = vector_list[0].get_shape().as_list()[0]
-    vector_list = [tf.reshape(x, [1, batch_size]) for x in vector_list]
 
-    trafo_matrix = tf.dynamic_stitch([[0], [1], [2], [3],
-                                      [4], [5], [6], [7],
-                                      [8], [9], [10], [11],
-                                      [12], [13], [14], [15]], vector_list)
+    # Ensure all vectors have the same batch size
+    batch_size = vector_list[0].shape[0]
+    for vec in vector_list:
+        assert vec.shape[0] == batch_size, "All vectors must have the same batch size."
 
-    trafo_matrix = tf.reshape(trafo_matrix, [4, 4, batch_size])
-    trafo_matrix = tf.transpose(trafo_matrix, [2, 0, 1])
+    # Reshape and stack the vectors
+    vector_list = [x.view(1, batch_size) for x in vector_list]
+    trafo_matrix = torch.cat(vector_list, 0).view(4, 4, batch_size)
+
+    # Transpose to get the desired shape
+    trafo_matrix = trafo_matrix.permute(2, 0, 1)
 
     return trafo_matrix
-
 
 def _atan2(y, x):
-    """ My implementation of atan2 in tensorflow.  Returns in -pi .. pi."""
-    tan = tf.atan(y / (x + 1e-8))  # this returns in -pi/2 .. pi/2
-
-    one_map = tf.ones_like(tan)
-
-    # correct quadrant error
-    correction = tf.where(tf.less(x + 1e-8, 0.0), 3.141592653589793*one_map, 0.0*one_map)
-    tan_c = tan + correction  # this returns in -pi/2 .. 3pi/2
-
-    # bring to positive values
-    correction = tf.where(tf.less(tan_c, 0.0), 2*3.141592653589793*one_map, 0.0*one_map)
-    tan_zero_2pi = tan_c + correction  # this returns in 0 .. 2pi
-
-    # make symmetric
-    correction = tf.where(tf.greater(tan_zero_2pi, 3.141592653589793), -2*3.141592653589793*one_map, 0.0*one_map)
-    tan_final = tan_zero_2pi + correction  # this returns in -pi .. pi
-    return tan_final
-
+    """
+    Implementation of atan2 in PyTorch. Returns in -pi .. pi.
+    """
+    # PyTorch's atan2 already handles the quadrant checks and returns values in the range -pi to pi
+    return torch.atan2(y, x + 1e-8)
 
 def _get_rot_mat_x_hom(angle):
-    """ Returns a 3D rotation matrix in homogeneous coords.  """
-    one_vec = tf.ones_like(angle)
-    zero_vec = one_vec*0.0
+    one_vec = torch.ones_like(angle)
+    zero_vec = torch.zeros_like(angle)
     trafo_matrix = _stitch_mat_from_vecs([one_vec, zero_vec, zero_vec, zero_vec,
-                                          zero_vec, tf.cos(angle), -tf.sin(angle), zero_vec,
-                                          zero_vec, tf.sin(angle), tf.cos(angle), zero_vec,
-                                          zero_vec, zero_vec, zero_vec, one_vec])
+                                                 zero_vec, torch.cos(angle), -torch.sin(angle), zero_vec,
+                                                 zero_vec, torch.sin(angle), torch.cos(angle), zero_vec,
+                                                 zero_vec, zero_vec, zero_vec, one_vec])
     return trafo_matrix
-
 
 def _get_rot_mat_y_hom(angle):
-    """ Returns a 3D rotation matrix in homogeneous coords.  """
-    one_vec = tf.ones_like(angle)
-    zero_vec = one_vec*0.0
-    trafo_matrix = _stitch_mat_from_vecs([tf.cos(angle), zero_vec, tf.sin(angle), zero_vec,
-                                          zero_vec, one_vec, zero_vec, zero_vec,
-                                          -tf.sin(angle), zero_vec, tf.cos(angle), zero_vec,
-                                          zero_vec, zero_vec, zero_vec, one_vec])
+    one_vec = torch.ones_like(angle)
+    zero_vec = torch.zeros_like(angle)
+    trafo_matrix = _stitch_mat_from_vecs([torch.cos(angle), zero_vec, torch.sin(angle), zero_vec,
+                                                 zero_vec, one_vec, zero_vec, zero_vec,
+                                                 -torch.sin(angle), zero_vec, torch.cos(angle), zero_vec,
+                                                 zero_vec, zero_vec, zero_vec, one_vec])
     return trafo_matrix
 
-
 def _get_rot_mat_z_hom(angle):
-    """ Returns a 3D rotation matrix in homogeneous coords. """
-    one_vec = tf.ones_like(angle)
-    zero_vec = one_vec*0.0
-    trafo_matrix = _stitch_mat_from_vecs([tf.cos(angle), -tf.sin(angle), zero_vec, zero_vec,
-                                          tf.sin(angle), tf.cos(angle), zero_vec, zero_vec,
-                                          zero_vec, zero_vec, one_vec, zero_vec,
-                                          zero_vec, zero_vec, zero_vec, one_vec])
+    one_vec = torch.ones_like(angle)
+    zero_vec = torch.zeros_like(angle)
+    trafo_matrix = _stitch_mat_from_vecs([torch.cos(angle), -torch.sin(angle), zero_vec, zero_vec,
+                                                 torch.sin(angle), torch.cos(angle), zero_vec, zero_vec,
+                                                 zero_vec, zero_vec, one_vec, zero_vec,
+                                                 zero_vec, zero_vec, zero_vec, one_vec])
     return trafo_matrix
 
 
 def _get_trans_mat_hom(trans):
-    """ Returns a 3D translation matrix in homogeneous coords. """
-    one_vec = tf.ones_like(trans)
-    zero_vec = one_vec*0.0
+    one_vec = torch.ones_like(trans)
+    zero_vec = torch.zeros_like(trans)
     trafo_matrix = _stitch_mat_from_vecs([one_vec, zero_vec, zero_vec, zero_vec,
-                                          zero_vec, one_vec, zero_vec, zero_vec,
-                                          zero_vec, zero_vec, one_vec, trans,
-                                          zero_vec, zero_vec, zero_vec, one_vec])
+                                                 zero_vec, one_vec, zero_vec, zero_vec,
+                                                 zero_vec, zero_vec, one_vec, trans,
+                                                 zero_vec, zero_vec, zero_vec, one_vec])
     return trafo_matrix
 
 
 def _to_hom(vector):
-    s = vector.get_shape().as_list()
-    vector = tf.reshape(vector, [s[0], -1, 1])
-    vector = tf.concat([vector, tf.ones((s[0], 1, 1))], 1)
+    s = vector.size()
+    vector = vector.view(s[0], -1, 1)
+    ones = torch.ones((s[0], 1, 1), dtype=vector.dtype, device=vector.device)
+    vector = torch.cat([vector, ones], 1)
     return vector
 
-
 def _from_hom(vector):
-    s = vector.get_shape().as_list()
-    vector = tf.reshape(vector, [s[0], -1, 1])
+    s = vector.size()
+    vector = vector.view(s[0], -1, 1)
     return vector[:, :-1, :]
 
 
+
 def _forward(length, angle_x, angle_y, T):
-    """ Given a articulations it calculates the update to the coord matrix and the location of the end point in global coords. """
-    # update current transformation from local -> new local
-    T_this = tf.matmul(_get_trans_mat_hom(-length), tf.matmul(_get_rot_mat_x_hom(-angle_x), _get_rot_mat_y_hom(-angle_y)))
+    # Update current transformation from local -> new local
+    T_this = torch.matmul(_get_trans_mat_hom(-length), 
+                          torch.matmul(_get_rot_mat_x_hom(-angle_x), _get_rot_mat_y_hom(-angle_y)))
 
-    # trafo from global -> new local
-    T = tf.matmul(T_this, T)
+    # Transformation from global -> new local
+    T = torch.matmul(T_this, T)
 
-    # calculate global location of this point
-    # x0 = tf.constant([[0.0], [0.0], [0.0], [1.0]])
-    s = length.get_shape().as_list()
-    x0 = _to_hom(tf.zeros((s[0], 3, 1)))
-    x = tf.matmul(tf.matrix_inverse(T), x0)
+    # Calculate global location of this point
+    x0 = _to_hom(torch.zeros((length.shape[0], 3, 1)))
+    x = torch.matmul(torch.inverse(T), x0)
     return x, T
 
 
 def _backward(delta_vec, T):
-    """ Given a vector it calculates the articulated angles and updates the current coord matrix. """
-    # calculate length directly
-    length = tf.sqrt(delta_vec[:, 0, 0]**2 + delta_vec[:, 1, 0]**2 + delta_vec[:, 2, 0]**2)
+    # Calculate length directly
+    length = torch.sqrt(delta_vec[:, 0, 0]**2 + delta_vec[:, 1, 0]**2 + delta_vec[:, 2, 0]**2)
 
-    # calculate y rotation
+    # Calculate y rotation
     angle_y = _atan2(delta_vec[:, 0, 0], delta_vec[:, 2, 0])
 
-    # this vector is an intermediate result and always has x=0
-    delta_vec_tmp = tf.matmul(_get_rot_mat_y_hom(-angle_y), delta_vec)
+    # This vector is an intermediate result and always has x=0
+    delta_vec_tmp = torch.matmul(_get_rot_mat_y_hom(-angle_y), delta_vec)
 
-    # calculate x rotation
+    # Calculate x rotation
     angle_x = _atan2(-delta_vec_tmp[:, 1, 0], delta_vec_tmp[:, 2, 0])
 
-    # update current transformation from local -> new local
-    T_this = tf.matmul(_get_trans_mat_hom(-length), tf.matmul(_get_rot_mat_x_hom(-angle_x), _get_rot_mat_y_hom(-angle_y)))
+    # Update current transformation from local -> new local
+    T_this = torch.matmul(_get_trans_mat_hom(-length), 
+                          torch.matmul(_get_rot_mat_x_hom(-angle_x), _get_rot_mat_y_hom(-angle_y)))
 
-    # trafo from global -> new local
-    T = tf.matmul(T_this, T)
+    # Transformation from global -> new local
+    T = torch.matmul(T_this, T)
 
-    # make them all batched scalars
-    length = tf.reshape(length, [-1])
-    angle_x = tf.reshape(angle_x, [-1])
-    angle_y = tf.reshape(angle_y, [-1])
+    # Make them all batched scalars
+    length = length.view(-1)
+    angle_x = angle_x.view(-1)
+    angle_y = angle_y.view(-1)
     return length, angle_x, angle_y, T
+
 
 # Encodes how the kinematic chain goes; Is a mapping from child -> parent: dict[child] = parent
 kinematic_chain_dict = {0: 'root',
@@ -192,51 +174,46 @@ def bone_rel_trafo(coords_xyz):
             coords_xyz: BxNx3 matrix, containing the coordinates for each of the N keypoints
     """
     # with tf.variable_scope('bone_rel_transformation'):
-    coords_xyz = tf.reshape(coords_xyz, [-1, 21, 3])
-
-    # list of results
+    coords_xyz = coords_xyz.view(-1, 21, 3)
     trafo_list = [None for _ in kinematic_chain_list]
     coords_rel_list = [0.0 for _ in kinematic_chain_list]
 
     # Iterate kinematic chain list (from root --> leaves)
     for bone_id in kinematic_chain_list:
-
-        # get parent of current bone
         parent_id = kinematic_chain_dict[bone_id]
 
         if parent_id == 'root':
+            # If there is no parent, global = local
+            delta_vec = _to_hom(coords_xyz[:, bone_id, :].unsqueeze(1))
+            T = _get_trans_mat_hom(torch.zeros_like(coords_xyz[:, 0, 0]))
 
-            # if there is no parent global = local
-            delta_vec = _to_hom(tf.expand_dims(coords_xyz[:, bone_id, :], 1))
-            T = _get_trans_mat_hom(tf.zeros_like(coords_xyz[:, 0, 0]))
-
-            # get articulation angles from bone vector
+            # Get articulation angles from bone vector
             results = _backward(delta_vec, T)
 
-            # save results
-            coords_rel_list[bone_id] = tf.stack(results[:3], 1)
+            # Save results
+            coords_rel_list[bone_id] = torch.stack(results[:3], 1)
             trafo_list[bone_id] = results[3]
 
         else:
-            T = trafo_list[parent_id]  #by sticking to the order defined in kinematic_chain_list its ensured, that this is avail
+            T = trafo_list[parent_id]
             assert T is not None, 'Something went wrong.'
 
-            # calculate coords in local system
-            x_local_parent = tf.matmul(T, _to_hom(tf.expand_dims(coords_xyz[:, parent_id, :], 1)))
-            x_local_child = tf.matmul(T, _to_hom(tf.expand_dims(coords_xyz[:, bone_id, :], 1)))
+            # Calculate coords in local system
+            x_local_parent = torch.matmul(T, _to_hom(coords_xyz[:, parent_id, :].unsqueeze(1)))
+            x_local_child = torch.matmul(T, _to_hom(coords_xyz[:, bone_id, :].unsqueeze(1)))
 
-            # calculate bone vector in local coords
+            # Calculate bone vector in local coords
             delta_vec = x_local_child - x_local_parent
-            delta_vec = _to_hom(tf.expand_dims(delta_vec[:, :3, :], 1))
+            delta_vec = _to_hom(delta_vec[:, :3, :].unsqueeze(1))
 
-            # get articulation angles from bone vector
+            # Get articulation angles from bone vector
             results = _backward(delta_vec, T)
 
-            # save results
-            coords_rel_list[bone_id] = tf.stack(results[:3], 1)
+            # Save results
+            coords_rel_list[bone_id] = torch.stack(results[:3], 1)
             trafo_list[bone_id] = results[3]
 
-    coords_rel = tf.stack(coords_rel_list, 1)
+    coords_rel = torch.stack(coords_rel_list, 1)
 
     return coords_rel
 
@@ -248,49 +225,47 @@ def bone_rel_trafo_inv(coords_rel):
             coords_rel: BxNx3 matrix, containing the coordinates for each of the N keypoints [length, angle_x, angle_y]
     """
     # with tf.variable_scope('assemble_bone_rel'):
-    s = coords_rel.get_shape().as_list()
+    s = coords_rel.shape
     if len(s) == 2:
-        coords_rel = tf.expand_dims(coords_rel, 0)
-        s = coords_rel.get_shape().as_list()
+        coords_rel = coords_rel.unsqueeze(0)
+        s = coords_rel.shape
     assert len(s) == 3, "Has to be a batch of coords."
 
-    # list of results
+    # List of results
     trafo_list = [None for _ in kinematic_chain_list]
     coords_xyz_list = [0.0 for _ in kinematic_chain_list]
 
     # Iterate kinematic chain list (from root --> leaves)
     for bone_id in kinematic_chain_list:
-
-        # get parent of current bone
         parent_id = kinematic_chain_dict[bone_id]
 
         if parent_id == 'root':
-            # if there is no parent global = local
-            T = _get_trans_mat_hom(tf.zeros_like(coords_rel[:, 0, 0]))
+            # If there is no parent, global = local
+            T = _get_trans_mat_hom(torch.zeros_like(coords_rel[:, 0, 0]))
 
-            # get articulation angles from bone vector
+            # Get articulation angles from bone vector
             x, T = _forward(length=coords_rel[:, bone_id, 0],
                             angle_x=coords_rel[:, bone_id, 1],
                             angle_y=coords_rel[:, bone_id, 2],
                             T=T)
 
-            # save results
-            coords_xyz_list[bone_id] = tf.squeeze(_from_hom(x), [2])
+            # Save results
+            coords_xyz_list[bone_id] = _from_hom(x).squeeze(2)
             trafo_list[bone_id] = T
 
         else:
-            T = trafo_list[parent_id]  #by sticking to the order defined in kinematic_chain_list its ensured, that this is avail
+            T = trafo_list[parent_id]
             assert T is not None, 'Something went wrong.'
 
-            # get articulation angles from bone vector
+            # Get articulation angles from bone vector
             x, T = _forward(length=coords_rel[:, bone_id, 0],
                             angle_x=coords_rel[:, bone_id, 1],
                             angle_y=coords_rel[:, bone_id, 2],
                             T=T)
 
-            # save results
-            coords_xyz_list[bone_id] = tf.squeeze(_from_hom(x), [2])
+            # Save results
+            coords_xyz_list[bone_id] = _from_hom(x).squeeze(2)
             trafo_list[bone_id] = T
 
-    coords_xyz = tf.stack(coords_xyz_list, 1)
+    coords_xyz = torch.stack(coords_xyz_list, 1)
     return coords_xyz

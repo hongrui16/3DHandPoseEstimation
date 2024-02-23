@@ -242,7 +242,10 @@ class Worker(object):
             # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
 
             loss_xyz, loss_uv, loss_contrast = self.criterion(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt) 
-            loss = loss_xyz + loss_uv/100000 + loss_contrast + loss_diffusion
+            if config.model_name == 'DiffusionHandPose':
+                loss = loss_xyz + loss_uv/100000 + loss_contrast + loss_diffusion
+            else:
+                loss = loss_xyz + loss_uv/100000 + loss_contrast 
             if split == 'training':
                 loss.backward()
                 self.optimizer.step()

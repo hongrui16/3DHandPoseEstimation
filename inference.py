@@ -190,14 +190,14 @@ class Worker(object):
             # pre_joint_mesh[0].show()
             # gt_joint_mesh[0].show()
 
-
+            self.save_img = False
             if self.save_img:
                 img_filepath = os.path.join(self.img_save_dir, img_names[0].split('.')[0] + '_pre.jpg')
                 if config.model_name in ['TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']:
                     plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), gt_uv21 = keypoint_uv21_gt[0].cpu().numpy(), img_filepath = img_filepath, second_keypoints_uv = keypoint_uv21_from_2D_net[0].cpu().numpy())
                 else:
                     plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), gt_uv21 = keypoint_uv21_gt[0].cpu().numpy(), img_filepath = img_filepath)
-
+            print(np.round(np.concatenate([keypoint_xyz21_gt[0].cpu().numpy().squeeze(), keypoint_xyz21_pred[0].cpu().numpy().squeeze()], axis=1), 4))
             # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'
             loginfo = f'{formatted_split} Iter: {idx:05d}/{num_iter:05d}, MPJPE: {mpjpe.item():.4f}'
             tbar.set_description(loginfo)

@@ -53,5 +53,3 @@ Learning to Estimate 3D Hand Pose from Single RGB Images [official code](https:/
 
 [Contrastive Representation Learning for Hand Shape Estimation](https://github.com/lmb-freiburg/contra-hand/tree/main)
 
-[Minimal-Hand-pytorch](https://github.com/MengHao666/Minimal-Hand-pytorch/tree/main)
-

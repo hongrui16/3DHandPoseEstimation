@@ -73,5 +73,6 @@ infer_resume_weight_path = 'logs/TwoDimHandPoseWithFK/RHD/run_2024-02-15-00-17-4
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_model_best.pth.tar'
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_checkpoint.pth.tar'
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-21-23-46/DF_checkpoint.pth.tar'
+infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-22-09-31-39/DF_checkpoint.pth.tar'
 
 

@@ -19,9 +19,9 @@ from config import config
 from utils import transformations as tr
 
 from utils.plot_anno import *
-from utils.general_torch import crop_image_from_xy_torch
+from utils.general import crop_image_from_xy_torch
 from utils.canonical_trafo import canonical_trafo, flip_right_hand
-from utils.relative_trafo_torch import bone_rel_trafo
+from utils.relative_trafo import bone_rel_trafo
 from utils.coordinate_trans import camera_xyz_to_uv
 
 
