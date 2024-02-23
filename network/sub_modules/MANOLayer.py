@@ -49,9 +49,10 @@ def to_np(array, dtype=np.float32):
 
 
 class ManoLayer(nn.Module):
-    def __init__(self, device, MANO_RIGHT_pkl = None, bases_num = 10, pose_num = 6, mesh_num=778, keypoints_num=16):       
+    def __init__(self, device, MANO_RIGHT_pkl = None, bases_num = 10, pose_num = 6):       
         super(ManoLayer, self).__init__()
-         
+        mesh_num=778
+        keypoints_num=16
         self.device = device
         self.bases_num = bases_num 
         self.pose_num = pose_num
@@ -279,6 +280,8 @@ class MANOThetaPrediction(torch.nn.Module):
 
         return root_angles, other_angles
     
+
+
 
 
 

@@ -24,15 +24,17 @@ calculate_scoremap=False
 # model_name = 'ThreeDimHandPose'
 # model_name = 'OnlyThreeDimHandPose'
 # model_name = 'TwoDimHandPoseWithFK'
-model_name = 'MANO3DHandPose'
+# model_name = 'MANO3DHandPose'
 # model_name = 'Hand3DPoseNet'
+model_name = 'threeHandShapeAndPoseMANO'
+
 
 
 
 '''## general parameters'''
 keypoint_num = 21
 gpu_idx = None
-gpu_idx = 2
+# gpu_idx = 2
 resnet_out_feature_dim = 1024
 compute_uv_loss = False
 
@@ -47,9 +49,14 @@ other_joint_angles_num = 23
 
 '''## MANO parameters'''
 mano_right_hand_path = 'config/mano/models/MANO_RIGHT.pkl'
-mano_pose_num = 10 #45
+mano_pose_num = 6 #6, 10, 45
 mano_beta_num = 10 ### do not change this
 joint_order_switched = True
+
+'''## ThreeHandShapeAndPose network ##'''
+network_regress_uv = False
+
+
 
 '''## training parameters'''
 save_log_dir = 'logs'
@@ -74,5 +81,6 @@ infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_m
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_checkpoint.pth.tar'
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-21-23-46/DF_checkpoint.pth.tar'
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-22-09-31-39/DF_checkpoint.pth.tar'
+infer_resume_weight_path = 'logs/Hand3DPoseNet/RHD/run_2024-02-22-09-21-21/DF_checkpoint.pth.tar'
 
 

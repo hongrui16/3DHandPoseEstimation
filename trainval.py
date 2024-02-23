@@ -22,7 +22,7 @@ from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
 from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation, TwoDimHandPoseWithFKEstimation
 from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
 from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
-
+from network.threeHandShapeAndPoseMANO import ThreeHandShapeAndPose
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
@@ -45,7 +45,8 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK', 'MANO3DHandPose']
+        assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 
+                                     'TwoDimHandPoseWithFK', 'MANO3DHandPose', 'threeHandShapeAndPoseMANO']
 
         self.device = device
 
@@ -67,6 +68,10 @@ class Worker(object):
         elif config.model_name == 'MANO3DHandPose':
             self.model = MANO3DHandPoseEstimation(device)
             comp_xyz_loss = True
+        elif config.model_name == 'threeHandShapeAndPoseMANO':
+            self.model = ThreeHandShapeAndPose(device)
+            comp_xyz_loss = True
+            config.compute_uv_loss = False
         
         if not config.compute_uv_loss:
             comp_uv_loss = False

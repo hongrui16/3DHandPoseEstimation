@@ -1,7 +1,9 @@
 import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+import numpy as np
+import matplotlib.pyplot as plt
+import os, sys
+
+sys.path.append("..")
 
 from config import config
 

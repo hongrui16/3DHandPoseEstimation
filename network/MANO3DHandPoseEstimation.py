@@ -1,7 +1,4 @@
 import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 import numpy as np
 import matplotlib.pyplot as plt
 import os, sys
@@ -10,11 +7,7 @@ sys.path.append("..")
 
 from config import config
 
-from network.sub_modules.conditionalDiffusion import *
-from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimation
 from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
-from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
-from network.sub_modules.bonePrediction import BoneAnglePrediction, BoneLengthPrediction
 
 from network.sub_modules.MANOLayer import ManoLayer, MANOBetasPrediction, MANOThetaPrediction
 from utils.coordinate_trans import batch_project_xyz_to_uv
@@ -23,13 +16,15 @@ from utils.coordinate_trans import batch_project_xyz_to_uv
 
 
 class MANO3DHandPoseEstimation(torch.nn.Module):
-    def __init__(self, device = 'cpu'):
+    def __init__(self, device = 'cpu', mano_right_hand_path = None):
         super(MANO3DHandPoseEstimation, self).__init__()
         self.device = device
         self.resnet_extractor = ResNetFeatureExtractor(config.resnet_out_feature_dim)
         self.betas_predictor = MANOBetasPrediction(device, config.resnet_out_feature_dim)
         self.theta_predictor = MANOThetaPrediction(device, config.resnet_out_feature_dim)
-        self.mano_layer = ManoLayer(device, config.mano_right_hand_path, pose_num=config.mano_pose_num)
+        if mano_right_hand_path is None:
+            mano_right_hand_path = config.mano_right_hand_path
+        self.mano_layer = ManoLayer(device, mano_right_hand_path, pose_num=config.mano_pose_num)
     
 
     def match_mano_to_RHD(self, mano_joints):
@@ -80,9 +75,9 @@ if __name__ == "__main__":
 
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    
+    MANO_RIGHT_pkl = '../config/mano/models/MANO_RIGHT.pkl'
     batch_size = 1
-    MANO3DHandPose = MANO3DHandPoseEstimation(device).to(device)
+    MANO3DHandPose = MANO3DHandPoseEstimation(device, MANO_RIGHT_pkl).to(device)
     image = torch.rand(batch_size, 3, 320, 320, device = device)*255
     camera_intrinsic_matrix = torch.rand(batch_size, 3, 3, device = device)*400
     index_root_bone_length = torch.rand(batch_size, 1, device = device)

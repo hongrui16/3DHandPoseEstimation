@@ -1,7 +1,4 @@
 import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 import numpy as np
 import matplotlib.pyplot as plt
 import os, sys
@@ -10,13 +7,11 @@ sys.path.append("..")
 
 from config import config
 
-from network.sub_modules.conditionalDiffusion import *
-from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimation
 from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
-from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
-from network.sub_modules.bonePrediction import BoneAnglePrediction, BoneLengthPrediction
+
 
 from network.sub_modules.PoseViewPointEst import *
+from utils.coordinate_trans import batch_project_xyz_to_uv
 
 
 
@@ -31,7 +26,7 @@ class Hand3DPoseNet(torch.nn.Module):
     
 
 
-    def forward(self, img):
+    def forward(self, img, camera_intrinsic_matrix = None, index_root_bone_length = None, kp_coord_xyz_root = None, pose_x0 = None):
         # img: [batch, 3, 320, 320]
         # camera_intrinsic_matrix: [batch, 3, 3]
         # index_root_bone_length: [batch, 1]
@@ -46,8 +41,15 @@ class Hand3DPoseNet(torch.nn.Module):
         rot_mat = self._get_rot_mat(ux, uy, uz)
         # Assuming can_xyz_kps21 and rot_mat are PyTorch tensors with shapes [B, 21, 3] and [B, 3, 3], respectively.
         coord_xyz_rel_normed = torch.matmul(can_xyz_kps21, rot_mat) #[B, 21, 3]
-
-        result = [coord_xyz_rel_normed, can_xyz_kps21, rot_mat]
+        # print('config.is_inference', config.is_inference)
+        if config.is_inference:
+            kp_coord_xyz_root = kp_coord_xyz_root.unsqueeze(1)  # [bs, 3] -> [bs, 1, 3]
+            index_root_bone_length = index_root_bone_length.unsqueeze(-1)  # [bs, 1] -> [bs, 1, 1]
+            joint_xyz21 = coord_xyz_rel_normed * index_root_bone_length + kp_coord_xyz_root
+            uv21 = batch_project_xyz_to_uv(joint_xyz21, camera_intrinsic_matrix)
+            result = [joint_xyz21, uv21, None], None
+        else:
+            result = [coord_xyz_rel_normed, can_xyz_kps21, rot_mat]
         return result
 
 

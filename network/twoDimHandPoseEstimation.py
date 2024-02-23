@@ -1,12 +1,12 @@
 import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+import numpy as np
+import matplotlib.pyplot as plt
+import os, sys
+
+sys.path.append("..")
 
 from config import config
 
-from network.sub_modules.conditionalDiffusion import *
-from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimation
 from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
 from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
 from network.sub_modules.bonePrediction import BoneAnglePrediction, BoneLengthPrediction
