@@ -1,6 +1,5 @@
 # DenoisingDiffusion3DHandPoseEstimation
-This a code implementation for 3D hand pose estimation, and some parts of the work are based on the paper titled ["Denoising Diffusion for 3D Hand Pose Estimation from Images"](https://arxiv.org/abs/2308.09523).
-
+This a code implementation for 3D hand pose estimation, which contains a bunch of networks.
 <!-- 
 ## Install library packages
 ```pip install -r requirements.txt``` -->
@@ -53,3 +52,4 @@ Learning to Estimate 3D Hand Pose from Single RGB Images [official code](https:/
 
 [Contrastive Representation Learning for Hand Shape Estimation](https://github.com/lmb-freiburg/contra-hand/tree/main)
 
+["Denoising Diffusion for 3D Hand Pose Estimation from Images"](https://arxiv.org/abs/2308.09523)
