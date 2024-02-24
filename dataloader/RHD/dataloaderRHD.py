@@ -375,8 +375,8 @@ class RHD_HandKeypointsDataset(Dataset):
             # Modify uv21 coordinates
             keypoint_uv21_u = (keypoint_uv21[:, 0] - x1) * scale_x
             keypoint_uv21_v = (keypoint_uv21[:, 1] - y1) * scale_y
-            new_keypoint_uv21 = torch.stack([keypoint_uv21_u, keypoint_uv21_v], dim=1)
-            data_dict['keypoint_uv21'] = new_keypoint_uv21
+            keypoint_uv21 = torch.stack([keypoint_uv21_u, keypoint_uv21_v], dim=1)
+            data_dict['keypoint_uv21'] = keypoint_uv21
 
             # if hand_side.item() == 0:# left hand
             #     cropped_img = cropped_img.flip(dims=[2])
@@ -410,7 +410,7 @@ class RHD_HandKeypointsDataset(Dataset):
             #     pass
             #     print(f'new_pro_uv21: {new_pro_uv21}')
             
-
+        # print('keypoint_uv21.shape',keypoint_uv21.shape) # torch.Size([21, 2])
         ### DEPENDENT DATA ITEMS: Scoremap from the SUBSET of 21 keypoints
         if self.calculate_scoremap:
             keypoint_hw21 = torch.stack([keypoint_uv21[:, 1], keypoint_uv21[:, 0]], dim=-1) # create scoremaps from the subset of 2D annoataion
@@ -430,6 +430,8 @@ class RHD_HandKeypointsDataset(Dataset):
                 scoremap = F.dropout(scoremap, p=self.scoremap_dropout_prob, training=self.training)
                 scoremap *= self.scoremap_dropout_prob
             data_dict['scoremap'] = scoremap
+            scoremap = scoremap.permute(2, 0, 1)
+            # print('scoremap.shape', scoremap.shape)
 
         if self.scale_to_size:
             # Resize image
@@ -526,29 +528,24 @@ class RHD_HandKeypointsDataset(Dataset):
 
         coords_uv = coords_uv.to(torch.float32)
 
-        # create meshgrid
-        x_range = torch.unsqueeze(torch.arange(output_size[0]), 1)
-        y_range = torch.unsqueeze(torch.arange(output_size[1]), 0)
 
-        X = torch.tile(x_range, (1, output_size[1])).to(torch.float32)
-        Y = torch.tile(y_range, (output_size[0], 1)).to(torch.float32)
+        # create meshgrid
+        X, Y = torch.meshgrid(torch.arange(output_size[0], dtype=torch.float32), 
+                              torch.arange(output_size[1], dtype=torch.float32), indexing='ij')
 
         X = torch.unsqueeze(X, -1)
         Y = torch.unsqueeze(Y, -1)
 
-        X_b = X.repeat(1, 1, coords_uv.shape[0])
-        Y_b = Y.repeat(1, 1, coords_uv.shape[0])
+        # Replicate X and Y for each keypoint
+        X_b = X.repeat(1, 1, coords_uv.shape[0]) - coords_uv[:, 0].view(1, 1, -1)
+        Y_b = Y.repeat(1, 1, coords_uv.shape[0]) - coords_uv[:, 1].view(1, 1, -1)
 
-        X_b -= coords_uv[:, 0]
-        Y_b -= coords_uv[:, 1]
+        # Calculate squared distances
+        dist = X_b.pow(2) + Y_b.pow(2)
 
-        dist = torch.square(X_b) + torch.square(Y_b)
+        # Generate scoremap
+        scoremap = torch.exp(-dist / sigma.pow(2)) * cond.view(1, 1, -1).float()
 
-        # print('dist.shape', dist.shape)
-        # print('sigma.shape', sigma.shape)
-        # print('cond.shape', cond.shape)
-
-        scoremap = torch.exp(-dist / torch.square(sigma)) * cond.to(torch.float32)
 
         return scoremap
 
@@ -599,6 +596,7 @@ if __name__ == '__main__':
     # Usage example
     i = 0
     for batch in dataloader:
+        scoremap = batch['scoremap']
         images = batch['image']
         image_crop = batch['image_crop']
 
@@ -666,3 +664,10 @@ if __name__ == '__main__':
         break
         if i > 8:
             break
+    
+    scoremap_0th_channel = scoremap[0, :, :, 0].cpu().numpy()
+
+    # Use matplotlib to visualize the 0th channel
+    plt.imshow(scoremap_0th_channel, cmap='gray')  # 'gray' colormap for single-channel visualization
+    plt.colorbar()  # Optionally add a colorbar to see the mapping of values to colors
+    plt.show()
