@@ -575,7 +575,7 @@ class RHD_HandKeypointsDataset(Dataset):
 if __name__ == '__main__':
 
     dataset_dir = '../../dataset/RHD'
-    # dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+    dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
     num_workers = 15
     batch_size=480
     num_workers = 1
@@ -635,6 +635,7 @@ if __name__ == '__main__':
         keypoint_xyz21_rel_normed = batch['keypoint_xyz21_rel_normed']
         keypoint_xyz_root = batch['keypoint_xyz_root']
         hand_side = batch['hand_side']
+        right_hand_mask = batch['right_hand_mask']
         print('img_name:', img_name)
         # print('keypoints_xyz:', keypoints_xyz)
         # print('keypoint_uv:', keypoints_uv)
@@ -664,26 +665,29 @@ if __name__ == '__main__':
         # print('images.shape:', images.shape) # torch.Size([BS, 3, 3])
         # print('image_crop.shape:', image_crop.shape) # torch.Size([BS, 3, 3])
         # print('keypoint_xyz21.shape',keypoint_xyz21.shape)
-        new_pro_uv21 = camera_xyz_to_uv(keypoint_xyz21[0], camera_matrices[0])
-        print('new_pro_uv21.shape',new_pro_uv21.shape)
-        # plot_uv_on_image(new_pro_uv21.numpy(), (255*(0.5+image_crop[0].permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis21[0].numpy().squeeze())
-        print('keypoint_uv21[0,:3]',keypoint_uv21[0,:3])
-        print('new_pro_uv21[:3]',new_pro_uv21[:3])
+        # new_pro_uv21 = camera_xyz_to_uv(keypoint_xyz21[0], camera_matrices[0])
+        # print('new_pro_uv21.shape',new_pro_uv21.shape)
+        # # plot_uv_on_image(new_pro_uv21.numpy(), (255*(0.5+image_crop[0].permute(1, 2, 0))).numpy().astype(np.uint8), keypoint_vis21[0].numpy().squeeze())
+        # print('keypoint_uv21[0,:3]',keypoint_uv21[0,:3])
+        # print('new_pro_uv21[:3]',new_pro_uv21[:3])
 
-        kp_coord_xyz21_rel_can = batch['kp_coord_xyz21_rel_can']
-        rot_mat = batch['rot_mat']
-        print('kp_coord_xyz21_rel_can.shape',kp_coord_xyz21_rel_can.shape)
-        print('rot_mat.shape',rot_mat.shape)
+        # kp_coord_xyz21_rel_can = batch['kp_coord_xyz21_rel_can']
+        # rot_mat = batch['rot_mat']
+        # print('kp_coord_xyz21_rel_can.shape',kp_coord_xyz21_rel_can.shape)
+        # print('rot_mat.shape',rot_mat.shape)
         # break
         print(f'i: {i}\n')
         i += 1
         break
         if i > 8:
             break
-    
+    print('right_hand_mask.shape', right_hand_mask.shape)
     # scoremap_0th_channel = scoremap[0, :, :, 0].cpu().numpy()
-
-    # # Use matplotlib to visualize the 0th channel
     # plt.imshow(scoremap_0th_channel, cmap='gray')  # 'gray' colormap for single-channel visualization
-    # plt.colorbar()  # Optionally add a colorbar to see the mapping of values to colors
-    # plt.show()
+    
+    right_hand_mask = right_hand_mask.cpu().squeeze().numpy()
+
+    # Use matplotlib to visualize the 0th channel
+    plt.imshow(right_hand_mask, cmap='gray')  # 'gray' colormap for single-channel visualization
+    plt.colorbar()  # Optionally add a colorbar to see the mapping of values to colors
+    plt.show()
