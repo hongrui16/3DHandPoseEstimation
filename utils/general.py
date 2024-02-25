@@ -162,3 +162,65 @@ def plot_hand_3d(coords_xyz, axis, color_fixed=None, linewidth='1'):
             axis.plot(coords[:, 0], coords[:, 1], coords[:, 2], color_fixed, linewidth=linewidth)
 
     axis.view_init(azim=-90., elev=90.)
+
+
+
+
+def calculate_padding(input_size, kernel_size, stride):
+    """Calculates the amount of padding to add according to Tensorflow's
+    padding strategy."""
+
+    cond = input_size % stride
+
+    if cond == 0:
+        pad = max(kernel_size - stride, 0)
+    else:
+        pad = max(kernel_size - cond, 0)
+
+    if pad % 2 == 0:
+        pad_val = pad // 2
+        padding = (pad_val, pad_val)
+    else:
+        pad_val_start = pad // 2
+        pad_val_end = pad - pad_val_start
+        padding = (pad_val_start, pad_val_end)
+
+    return padding
+
+
+def _get_rot_mat(ux_b, uy_b, uz_b):
+    """Converts axis-angle parameters to a rotation matrix.
+
+    The axis-angle parameters have an encoded angle.
+
+    Args:
+        ux, uy, uz axis-angle parameters， Tensor (batch x 1):
+
+    Returns:
+        rot_matrix - Tensor (batch x 3 x 3): Rotation matrices.
+    """
+    """Returns a rotation matrix from axis and (encoded) angle in PyTorch."""
+    u_norm = torch.sqrt(ux_b**2 + uy_b**2 + uz_b**2 + 1e-8)
+    theta = u_norm
+
+    # some tmp vars
+    st_b = torch.sin(theta)
+    ct_b = torch.cos(theta)
+    one_ct_b = 1.0 - torch.cos(theta)
+
+    st = st_b[:, 0]
+    ct = ct_b[:, 0]
+    one_ct = one_ct_b[:, 0]
+    norm_fac = 1.0 / u_norm[:, 0]
+
+    ux = ux_b[:, 0] * norm_fac
+    uy = uy_b[:, 0] * norm_fac
+    uz = uz_b[:, 0] * norm_fac
+
+    top = torch.stack((ct + ux * ux * one_ct, ux * uy * one_ct - uz * st, ux * uz * one_ct + uy * st), dim=1)
+    mid = torch.stack((uy * ux * one_ct + uz * st, ct + uy * uy * one_ct, uy * uz * one_ct - ux * st), dim=1)
+    bot = torch.stack((uz * ux * one_ct - uy * st, uz * uy * one_ct + ux * st, ct + uz * uz * one_ct), dim=1)
+
+    rot_matrix = torch.stack((top, mid, bot), dim=1)
+
+    return rot_matrix

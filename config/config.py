@@ -26,7 +26,9 @@ calculate_scoremap=True ## this must be True
 # model_name = 'TwoDimHandPoseWithFK'
 # model_name = 'MANO3DHandPose'
 # model_name = 'Hand3DPoseNet'
-model_name = 'threeHandShapeAndPoseMANO'
+# model_name = 'threeHandShapeAndPoseMANO'
+model_name = 'Hand3DPosePriorNetwork'
+
 
 
 

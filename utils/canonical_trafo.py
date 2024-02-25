@@ -60,7 +60,6 @@ def _stitch_mat_from_vecs(vector_list):
 
     return trafo_matrix
 
-import torch
 
 def _get_rot_mat_x(angle):
     """Returns a 3D rotation matrix around the x-axis in PyTorch."""

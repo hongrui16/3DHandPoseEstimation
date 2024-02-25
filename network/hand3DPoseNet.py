@@ -10,9 +10,9 @@ from config import config
 from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
 
 
-from network.sub_modules.PoseViewPointEst import *
+from network.sub_modules.PoseViewPointMLP import *
 from utils.coordinate_trans import batch_project_xyz_to_uv
-
+from utils.general import _get_rot_mat
 
 
 
@@ -38,7 +38,7 @@ class Hand3DPoseNet(torch.nn.Module):
         can_xyz_kps21 = can_xyz_kps21.view(b, -1, 3)
         ux, uy, uz = self.view_point_predictor(resnet_features)
         # assemble rotation matrix
-        rot_mat = self._get_rot_mat(ux, uy, uz)
+        rot_mat = _get_rot_mat(ux, uy, uz)
         # Assuming can_xyz_kps21 and rot_mat are PyTorch tensors with shapes [B, 21, 3] and [B, 3, 3], respectively.
         coord_xyz_rel_normed = torch.matmul(can_xyz_kps21, rot_mat) #[B, 21, 3]
         # print('config.is_inference', config.is_inference)
@@ -54,52 +54,6 @@ class Hand3DPoseNet(torch.nn.Module):
 
 
 
-    def _get_rot_mat(self, ux_b, uy_b, uz_b):
-        """Returns a rotation matrix from axis and (encoded) angle in PyTorch."""
-        u_norm = torch.sqrt(ux_b**2 + uy_b**2 + uz_b**2 + 1e-8)
-        theta = u_norm
-
-        # some tmp vars
-        st_b = torch.sin(theta)
-        ct_b = torch.cos(theta)
-        one_ct_b = 1.0 - torch.cos(theta)
-
-        st = st_b[:, 0]
-        ct = ct_b[:, 0]
-        one_ct = one_ct_b[:, 0]
-        norm_fac = 1.0 / u_norm[:, 0]
-        ux = ux_b[:, 0] * norm_fac
-        uy = uy_b[:, 0] * norm_fac
-        uz = uz_b[:, 0] * norm_fac
-
-        trafo_matrix = self._stitch_mat_from_vecs([ct+ux*ux*one_ct, ux*uy*one_ct-uz*st, ux*uz*one_ct+uy*st,
-                                                   uy*ux*one_ct+uz*st, ct+uy*uy*one_ct, uy*uz*one_ct-ux*st,
-                                                   uz*ux*one_ct-uy*st, uz*uy*one_ct+ux*st, ct+uz*uz*one_ct])
-
-        return trafo_matrix
-
-
-    @staticmethod
-    def _stitch_mat_from_vecs(vector_list):
-        """Stitches a given list of vectors into a 3x3 matrix in PyTorch.
-
-        Input:
-            vector_list: list of 9 tensors, which will be stitched into a matrix. The list contains matrix elements
-                         in a row-first fashion (m11, m12, m13, m21, m22, m23, m31, m32, m33). The length of the vectors has
-                         to be the same, because it is interpreted as batch dimension.
-        """
-        
-        assert len(vector_list) == 9, "There have to be exactly 9 tensors in vector_list."
-        batch_size = vector_list[0].shape[0]
-        
-        # Reshape each tensor in vector_list to have shape [batch_size, 1] and concatenate them along dim=1
-        vector_list = [x.view(batch_size, 1) for x in vector_list]
-        trafo_matrix = torch.cat(vector_list, dim=1)
-        
-        # Reshape to have shape [batch_size, 3, 3]
-        trafo_matrix = trafo_matrix.view(batch_size, 3, 3)
-
-        return trafo_matrix
 
 
 

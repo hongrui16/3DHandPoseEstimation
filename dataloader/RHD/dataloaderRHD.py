@@ -665,9 +665,9 @@ if __name__ == '__main__':
         if i > 8:
             break
     
-    scoremap_0th_channel = scoremap[0, :, :, 0].cpu().numpy()
+    # scoremap_0th_channel = scoremap[0, :, :, 0].cpu().numpy()
 
-    # Use matplotlib to visualize the 0th channel
-    plt.imshow(scoremap_0th_channel, cmap='gray')  # 'gray' colormap for single-channel visualization
-    plt.colorbar()  # Optionally add a colorbar to see the mapping of values to colors
-    plt.show()
+    # # Use matplotlib to visualize the 0th channel
+    # plt.imshow(scoremap_0th_channel, cmap='gray')  # 'gray' colormap for single-channel visualization
+    # plt.colorbar()  # Optionally add a colorbar to see the mapping of values to colors
+    # plt.show()

@@ -22,7 +22,8 @@ from config import config
 # from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation, TwoDimHandPoseWithFKEstimation
 # from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
 # from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
-from network.Hand3DPoseNet import Hand3DPoseNet
+from network.hand3DPoseNet import Hand3DPoseNet
+from network.hand3DPosePriorNetwork import Hand3DPosePriorNetwork
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
@@ -30,7 +31,6 @@ from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
 
 config.is_inference = False
-config.model_name = 'Hand3DPoseNet'
 
 class Worker(object):
     def __init__(self, gpu_index = None):
@@ -54,21 +54,11 @@ class Worker(object):
         if config.model_name == 'Hand3DPoseNet':
             self.model = Hand3DPoseNet(device)
             comp_xyz_loss = True
-        # elif config.model_name == 'TwoDimHandPoseWithFK':
-        #     self.model = TwoDimHandPoseWithFKEstimation(device)
-        #     comp_xyz_loss = True 
-        # elif config.model_name == 'DiffusionHandPose':
-        #     self.model = Diffusion3DHandPoseEstimation(device)
-        #     comp_xyz_loss = True
-        # elif config.model_name == 'ThreeDimHandPose':
-        #     self.model = ThreeDimHandPoseEstimation(device)
-        #     comp_xyz_loss = True
-        # elif config.model_name == 'OnlyThreeDimHandPose':
-        #     self.model = OnlyThreeDimHandPoseEstimation(device)
-        #     comp_xyz_loss = True 
-        # elif config.model_name == 'MANO3DHandPose':
-        #     self.model = MANO3DHandPoseEstimation(device)
-        #     comp_xyz_loss = True
+        elif config.model_name == 'Hand3DPosePriorNetwork':
+            self.model = Hand3DPosePriorNetwork(device)
+            comp_xyz_loss = True
+            
+        
         
 
             
@@ -189,6 +179,7 @@ class Worker(object):
             keypoint_vis21_gt = sample['keypoint_vis21'].to(self.device) # visiable points mask
             kp_coord_xyz21_rel_can_gt = sample['kp_coord_xyz21_rel_can'].to(self.device) #scale length
             rot_mat_gt = sample['rot_mat'].to(self.device) #scale length
+            scoremap = sample['scoremap'].to(self.device) #scale length
             # keypoint_xyz_root = sample['keypoint_xyz_root'].to(self.device)
             # keypoint_uv21_gt = sample['keypoint_uv21'].to(self.device) # uv coordinate
             # keypoint_xyz21_gt = sample['keypoint_xyz21'].to(self.device) # xyz absolute coordinate
@@ -199,12 +190,16 @@ class Worker(object):
         
             self.optimizer.zero_grad()
             if split == 'training':
-                result = self.model(image)
+                if config.model_name == 'Hand3DPoseNet':
+                    input = image
+                elif config.model_name == 'Hand3DPosePriorNetwork':
+                    input = scoremap
+                result, _ = self.model(input)
                 coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    result = self.model(image)
+                    result, _ = self.model(input)
                     coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
 
                     mpjpe = self.metric_mpjpe(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, keypoint_vis21_gt)
