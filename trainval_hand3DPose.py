@@ -69,11 +69,11 @@ class Worker(object):
         self.metric_mpjpe = MPJPE()
 
         if config.dataset_name == 'RHD':
-            # train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
-            train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+            train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+            # train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
-        self.train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, num_workers=15)
-        self.val_loader = DataLoader(val_set, batch_size=config.batch_size, shuffle=False, num_workers=15)
+        self.train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers)
+        self.val_loader = DataLoader(val_set, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
         
         current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
@@ -189,15 +189,15 @@ class Worker(object):
 
             # camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
             
-        
+            if config.model_name == 'Hand3DPoseNet':
+                input = image
+            elif config.model_name == 'Hand3DPosePriorNetwork':
+                input = scoremap
+            else:
+                raise ValueError('model_name not supported')
+            
             self.optimizer.zero_grad()
-            if split == 'training':
-                if config.model_name == 'Hand3DPoseNet':
-                    input = image
-                elif config.model_name == 'Hand3DPosePriorNetwork':
-                    input = scoremap
-                else:
-                    raise ValueError('model_name not supported')
+            if split == 'training':                
                 result, _ = self.model(input)
                 coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
                 mpjpe = None

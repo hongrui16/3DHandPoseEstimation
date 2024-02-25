@@ -87,8 +87,8 @@ class Worker(object):
         if config.dataset_name == 'RHD':
             train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
-        self.train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, num_workers=15)
-        self.val_loader = DataLoader(val_set, batch_size=config.batch_size, shuffle=False, num_workers=15)
+        self.train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers)
+        self.val_loader = DataLoader(val_set, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
         
         current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 

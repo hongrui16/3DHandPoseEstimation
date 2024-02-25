@@ -1,10 +1,12 @@
 '''## dataset parameters'''
-# dataset_root_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
-dataset_root_dir = 'dataset/RHD'
+dataset_root_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+# dataset_root_dir = 'dataset/RHD'
 dataset_name = 'RHD'
 
 '''## dataloader parameters'''
 shuffle=True
+num_workers = 5
+
 use_wrist_coord=True
 sigma=25.0
 hand_crop=True ## this must be True
@@ -65,8 +67,8 @@ network_regress_uv = False
 save_log_dir = 'logs'
 max_epoch = 100
 finetune = False
-# batch_size = 480
-batch_size = 1
+batch_size = 480
+# batch_size = 1
 uv_from_xD = 3 ## this is for where to get output of UV coordinates in TwoDimHandPoseWithFKEstimation, x = 2: from 2D keypoints directly; x = 3: from 3D keypoints projections; x = 2.5: 1/2 from 2D keypoints directly, 1/2 from 3D keypoints projections
 is_inference = False
 resume_weight_path = None
