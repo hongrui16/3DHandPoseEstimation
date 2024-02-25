@@ -47,7 +47,7 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert config.model_name in ['Hand3DPoseNet']
+        assert config.model_name in ['Hand3DPoseNet', 'Hand3DPosePriorNetwork']
 
         self.device = device
 
@@ -55,7 +55,7 @@ class Worker(object):
             self.model = Hand3DPoseNet(device)
             comp_xyz_loss = True
         elif config.model_name == 'Hand3DPosePriorNetwork':
-            self.model = Hand3DPosePriorNetwork(device)
+            self.model = Hand3DPosePriorNetwork()
             comp_xyz_loss = True
             
         
