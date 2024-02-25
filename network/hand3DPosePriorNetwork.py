@@ -24,7 +24,7 @@ class Hand3DPosePriorNetwork(torch.nn.Module):
         self.ViewPoint_net = ViewPoint()
     
     def forward(self, img, camera_intrinsic_matrix = None, index_root_bone_length = None, kp_coord_xyz_root = None, pose_x0 = None):
-        # img: [batch, 3, 320, 320]
+        # img: [batch, 21, 320, 320] or [batch, 21, 256, 256]
         # camera_intrinsic_matrix: [batch, 3, 3]
         # index_root_bone_length: [batch, 1]
         # kp_coord_xyz_root: [batch, 3]

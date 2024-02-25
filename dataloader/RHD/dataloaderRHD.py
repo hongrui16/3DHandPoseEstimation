@@ -429,9 +429,11 @@ class RHD_HandKeypointsDataset(Dataset):
                 # Apply dropout to scoremap
                 scoremap = F.dropout(scoremap, p=self.scoremap_dropout_prob, training=self.training)
                 scoremap *= self.scoremap_dropout_prob
-            data_dict['scoremap'] = scoremap
+            
+            # print('scoremap.shape', scoremap.shape)
             scoremap = scoremap.permute(2, 0, 1)
             # print('scoremap.shape', scoremap.shape)
+            data_dict['scoremap'] = scoremap
 
         if self.scale_to_size:
             # Resize image
@@ -559,7 +561,7 @@ class RHD_HandKeypointsDataset(Dataset):
 if __name__ == '__main__':
 
     dataset_dir = '../../dataset/RHD'
-    dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+    # dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
     num_workers = 15
     batch_size=480
     num_workers = 1

@@ -27,7 +27,9 @@ class ExtendedResNet18(nn.Module):
         self.num_output_features = self.feature_extractor.fc.out_features
     
     def forward(self, x):
+        # print('1 x.shape', x.shape)
         x = self.feature_extractor(x)  # Extract features through the modified ResNet18
+        # print('2 x.shape', x.shape)
         return x
 
 class PosePrior(nn.Module):
@@ -51,7 +53,6 @@ class PosePrior(nn.Module):
             (batch x num_keypoints x 3): xyz coordinates of the hand in
                 canonical 3D space.
         """
-
         x = self.extended_resnet18_extractor(x)
         x = self.mlp(x)
 

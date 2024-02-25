@@ -69,7 +69,8 @@ class Worker(object):
         self.metric_mpjpe = MPJPE()
 
         if config.dataset_name == 'RHD':
-            train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+            # train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+            train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
         self.train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, num_workers=15)
         self.val_loader = DataLoader(val_set, batch_size=config.batch_size, shuffle=False, num_workers=15)
@@ -180,6 +181,7 @@ class Worker(object):
             kp_coord_xyz21_rel_can_gt = sample['kp_coord_xyz21_rel_can'].to(self.device) #scale length
             rot_mat_gt = sample['rot_mat'].to(self.device) #scale length
             scoremap = sample['scoremap'].to(self.device) #scale length
+            # print('scoremap.shape', scoremap.shape)
             # keypoint_xyz_root = sample['keypoint_xyz_root'].to(self.device)
             # keypoint_uv21_gt = sample['keypoint_uv21'].to(self.device) # uv coordinate
             # keypoint_xyz21_gt = sample['keypoint_xyz21'].to(self.device) # xyz absolute coordinate
@@ -194,6 +196,8 @@ class Worker(object):
                     input = image
                 elif config.model_name == 'Hand3DPosePriorNetwork':
                     input = scoremap
+                else:
+                    raise ValueError('model_name not supported')
                 result, _ = self.model(input)
                 coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
                 mpjpe = None
