@@ -23,7 +23,7 @@ class Hand3DPoseNet(torch.nn.Module):
         self.resnet_extractor = ResNetFeatureExtractor(config.resnet_out_feature_dim)
         self.pose_predictor = Pose3dPrediction(device, config.resnet_out_feature_dim)
         self.view_point_predictor = ViewPointPrediction(device, config.resnet_out_feature_dim)
-    
+        self.diffusion_loss = torch.tensor(0, device=device)
 
 
     def forward(self, img, camera_intrinsic_matrix = None, index_root_bone_length = None, kp_coord_xyz_root = None, pose_x0 = None):
@@ -47,7 +47,7 @@ class Hand3DPoseNet(torch.nn.Module):
             index_root_bone_length = index_root_bone_length.unsqueeze(-1)  # [bs, 1] -> [bs, 1, 1]
             joint_xyz21 = coord_xyz_rel_normed * index_root_bone_length + kp_coord_xyz_root
             uv21 = batch_project_xyz_to_uv(joint_xyz21, camera_intrinsic_matrix)
-            result = [joint_xyz21, uv21, None], None
+            result = [joint_xyz21, uv21, None], self.diffusion_loss
         else:
             result = [coord_xyz_rel_normed, can_xyz_kps21, rot_mat]
         return result

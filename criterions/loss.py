@@ -60,7 +60,7 @@ class ContrastiveLoss(nn.Module):
 
 
 class LossCalculation(nn.Module):
-    def __init__(self, device = 'cpu', loss_type = 'L2', comp_xyz_loss = True, comp_uv_loss = False, comp_contrastive_loss = False):
+    def __init__(self, device = 'cpu', loss_type = 'L2', comp_xyz_loss = True, comp_uv_loss = False, comp_contrastive_loss = False, comp_hand_mask_loss = False, comp_regularization_loss = False):
         super(LossCalculation, self).__init__()
         assert loss_type in ['L2', 'L2']
         self.device = device
@@ -68,6 +68,8 @@ class LossCalculation(nn.Module):
         self.comp_xyz_loss = comp_xyz_loss
         self.comp_uv_loss = comp_uv_loss
         self.comp_contrastive_loss = comp_contrastive_loss
+        self.comp_hand_mask_loss = comp_hand_mask_loss
+        self.comp_regularization_loss = comp_regularization_loss
 
         if loss_type == 'L2':
             self.LossObj = L2Loss()
@@ -75,6 +77,8 @@ class LossCalculation(nn.Module):
             self.LossObj = L1Loss()
         if comp_contrastive_loss:
             self.ContrastiveLossObj = ContrastiveLoss()
+        
+        self.zero_tensor = torch.tensor(0, device=self.device)
 
     def compute_3d_coord_loss(self, pre_xyz, gt_xyz, keypoint_vis):
         return self.LossObj(pre_xyz, gt_xyz, keypoint_vis)
@@ -84,25 +88,63 @@ class LossCalculation(nn.Module):
     
     def compute_contrastive_loss(self, feat1, feat2, label):
         return self.ContrastiveLossObj(feat1, feat2, label)
-    
-    def forward(self, pre_xyz, gt_xyz, pre_uv, gt_uv, keypoint_vis, feat1 = None, feat2 = None, label = None):
+        
+    def compute_hand_mask_loss(self, pred_uv, gt_uv, hand_mask):
+        # Ensure UV coordinates are within the valid range and are integers for indexing
+        gt_uv = gt_uv.long().clamp(min=0, max=hand_mask.shape[-1] - 1)
+        pred_uv = pred_uv.long().clamp(min=0, max=hand_mask.shape[-1] - 1)
+        
+        # Prepare a batch index
+        batch_idx = torch.arange(hand_mask.size(0)).view(-1, 1).to(gt_uv.device)
+        
+        # Sample the mask values at the given UV coordinates
+        gt_mask_samples = hand_mask[batch_idx, gt_uv[..., 1], gt_uv[..., 0]]
+        pred_mask_samples = hand_mask[batch_idx, pred_uv[..., 1], pred_uv[..., 0]]
+        
+        # Count the valid points where the mask is non-zero (hand region)
+        GT_N = gt_mask_samples.sum(dim=1)  # Sum over the keypoints dimension
+        pred_N = pred_mask_samples.sum(dim=1)
+            
+        # We avoid division by zero by adding a small epsilon where GT_N is zero
+        epsilon = 1e-8
+        mask_loss = 1 - torch.sum(pred_N) / (torch.sum(GT_N) + epsilon)
+        return mask_loss
+
+    def compute_regularization_loss(self, theta, beta):
+        # Regularization loss for the MANO model
+        alpha_beta = 10000
+        return torch.norm(theta) + alpha_beta*torch.norm(beta)
+
+
+    def forward(self, pre_xyz, gt_xyz, pre_uv, gt_uv, keypoint_vis, feat1 = None, feat2 = None, label = None, hand_mask = None, theta = None, beta = None):
         if self.comp_xyz_loss:
             loss_xyz = self.compute_3d_coord_loss(pre_xyz, gt_xyz, keypoint_vis)
         else:
-            loss_xyz = torch.tensor(0, device=self.device)
+            loss_xyz = self.zero_tensor
 
         if self.comp_uv_loss:
             loss_uv = self.compute_uv_coord_loss(pre_uv, gt_uv, keypoint_vis)
         else:
-            loss_uv = torch.tensor(0, device=self.device)
+            loss_uv = self.zero_tensor
 
         if self.comp_contrastive_loss:
             loss_contrast = self.compute_contrastive_loss(feat1, feat2, label)
         else:
-            loss_contrast = torch.tensor(0, device=self.device)
+            loss_contrast = self.zero_tensor
+        
+        if self.comp_hand_mask_loss:
+            loss_hand_mask = self.compute_hand_mask_loss(pre_uv, gt_uv, hand_mask)
+        else:
+            loss_hand_mask = self.zero_tensor
+        
+        if self.comp_regularization_loss:
+            loss_regularization = self.compute_regularization_loss(theta, beta)
+        else:
+            loss_regularization = self.zero_tensor
+
         
         # loss = loss_xyz + loss_uv + loss_contrast
-        return loss_xyz, loss_uv, loss_contrast
+        return loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization
 
 
 if __name__ == '__main__':

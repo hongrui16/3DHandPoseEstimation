@@ -17,12 +17,13 @@ class ThreeHandShapeAndPose(torch.nn.Module):
         if mano_right_hand_path is None:
             mano_right_hand_path = config.mano_right_hand_path
         self.resnet_Mano = ResNet_Mano(device, BasicBlock, [3, 4, 6, 3], mano_right_hand_path = mano_right_hand_path)    
+        self.diffusion_loss = torch.tensor(0, device=device)
 
     def forward(self, img, camera_intrinsic_matrix = None, index_root_bone_length = None, kp_coord_xyz_root = None, pose_x0 = None):
         joint21_3d, uv21_2d = self.resnet_Mano(img)
         refined_joint_coord = [joint21_3d, uv21_2d, None]
         # refined_joint_coord ## [positions_xyz, positions_uv]
-        return refined_joint_coord, torch.tensor(0)
+        return refined_joint_coord, self.diffusion_loss, [None, None]
 
 
 

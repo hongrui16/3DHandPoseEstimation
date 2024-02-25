@@ -30,7 +30,7 @@ class TwoDimHandPoseEstimation(torch.nn.Module):
             torch.nn.Linear(config.resnet_out_feature_dim//16, config.eypoint_num*2),#[x1, y1, x2, y2......] the ration of u v, x=u/width, y=v/height
             torch.nn.Sigmoid()
         )
-    
+        self.diffusion_loss = torch.tensor(0, device=device)
 
     def forward(self, img, camera_intrinsic_matrix = None, index_root_bone_length = None, keypoint_xyz_root = None, pose_x0 = None):
         # Extract features using ResNet model
@@ -59,7 +59,7 @@ class TwoDimHandPoseEstimation(torch.nn.Module):
 
 
         refined_joint_coord = [None, keypoint_uv21, None]
-        return refined_joint_coord, torch.tensor(0)
+        return refined_joint_coord, self.diffusion_loss, [None, None]
         
         
 

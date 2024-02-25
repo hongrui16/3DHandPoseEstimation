@@ -23,6 +23,8 @@ from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation, TwoDimHan
 from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
 from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
 from network.threeHandShapeAndPoseMANO import ThreeHandShapeAndPose
+from network.resnet50MANO3DHandPose import Resnet50MANO3DHandPose
+
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
@@ -45,40 +47,51 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 
-                                     'TwoDimHandPoseWithFK', 'MANO3DHandPose', 'threeHandShapeAndPoseMANO']
+        # assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 
+        #                              'TwoDimHandPoseWithFK', 'MANO3DHandPose', 'threeHandShapeAndPoseMANO']
 
         self.device = device
-
+        self.comp_hand_mask_loss = False
+        self.comp_regularization_loss = False
+        self.comp_xyz_loss = False
+        self.comp_uv_loss = False
+        self.comp_diffusion_loss = False
+        self.comp_contrast_loss = False
+        
         if config.model_name == 'TwoDimHandPose':
             self.model = TwoDimHandPoseEstimation(device)
-            comp_xyz_loss = False
+            self.comp_xyz_loss = False
         elif config.model_name == 'TwoDimHandPoseWithFK':
             self.model = TwoDimHandPoseWithFKEstimation(device)
-            comp_xyz_loss = True 
+            self.comp_xyz_loss = True 
         elif config.model_name == 'DiffusionHandPose':
             self.model = Diffusion3DHandPoseEstimation(device)
-            comp_xyz_loss = True
+            self.comp_xyz_loss = True
         elif config.model_name == 'ThreeDimHandPose':
             self.model = ThreeDimHandPoseEstimation(device)
-            comp_xyz_loss = True
+            self.comp_xyz_loss = True
         elif config.model_name == 'OnlyThreeDimHandPose':
             self.model = OnlyThreeDimHandPoseEstimation(device)
-            comp_xyz_loss = True 
+            self.comp_xyz_loss = True 
         elif config.model_name == 'MANO3DHandPose':
             self.model = MANO3DHandPoseEstimation(device)
-            comp_xyz_loss = True
+            self.comp_xyz_loss = True
         elif config.model_name == 'threeHandShapeAndPoseMANO':
             self.model = ThreeHandShapeAndPose(device)
-            comp_xyz_loss = True
+            self.comp_xyz_loss = True
             config.compute_uv_loss = False
-        
-        if not config.compute_uv_loss:
-            comp_uv_loss = False
+            self.comp_uv_loss = False
+        elif config.model_name == 'Resnet50MANO3DHandPose':
+            self.model = Resnet50MANO3DHandPose(device)
+            self.comp_xyz_loss = True
+            self.comp_uv_loss = True
+            self.comp_hand_mask_loss = True
+            self.comp_regularization_loss = True
         else:
-            comp_uv_loss = True
+            raise ValueError(f'config.model_name {config.model_name} is not supported')
+        
             
-        self.criterion = LossCalculation(device=device, comp_xyz_loss = comp_xyz_loss, comp_uv_loss = comp_uv_loss)
+        self.criterion = LossCalculation(device=device, comp_xyz_loss = self.comp_xyz_loss, comp_uv_loss = self.comp_uv_loss, comp_hand_mask_loss = self.comp_hand_mask_loss, comp_regularization_loss = self.comp_regularization_loss)
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 
@@ -215,7 +228,7 @@ class Worker(object):
             keypoint_xyz21_rel_normed_gt = sample['keypoint_xyz21_rel_normed'].to(self.device) ## normalized xyz coordinates
 
             camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
-            
+            gt_hand_mask = sample['right_hand_mask'].to(self.device)
             
 
             bs, num_points, c = keypoint_xyz21_rel_normed_gt.shape
@@ -226,12 +239,12 @@ class Worker(object):
 
             self.optimizer.zero_grad()
             if split == 'training':
-                refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                refined_joint_coord, loss_diffusion, theta_beta = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
                 keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    refined_joint_coord, loss_diffusion = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                    refined_joint_coord, loss_diffusion, theta_beta = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
                     keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
                     if config.model_name == 'TwoDimHandPose':
                         mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
@@ -245,24 +258,33 @@ class Worker(object):
             # print('keypoint_uv21_gt[0]', keypoint_uv21_gt[0])
             # print('keypoint_uv21_pred[0]', keypoint_uv21_pred[0])
             # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
+            theta, beta = theta_beta
 
-            loss_xyz, loss_uv, loss_contrast = self.criterion(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt) 
+            loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = self.criterion(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt, hand_mask = gt_hand_mask, theta = theta, beta = beta) 
             if config.model_name == 'DiffusionHandPose':
-                loss = loss_xyz + loss_uv/100000 + loss_contrast + loss_diffusion
+                loss = loss_xyz + loss_uv/100000 + loss_contrast + loss_diffusion + loss_hand_mask + loss_regularization
             else:
-                loss = loss_xyz + loss_uv/100000 + loss_contrast 
+                loss = loss_xyz + loss_uv/100000 + loss_contrast + loss_hand_mask + loss_regularization
             if split == 'training':
                 loss.backward()
                 self.optimizer.step()
+            loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
+            if not split == 'training':                            
+                loginfo += f'MPJPE: {mpjpe.item():.4f}'
+            if self.comp_diffusion_loss:
+                loginfo += f'| L_diff: {loss_diffusion.item():.4f}'
+            if self.comp_xyz_loss:
+                loginfo += f'| L_xyz: {loss_xyz.item():.4f}'
+            if self.comp_uv_loss:
+                loginfo += f'| L_uv: {loss_uv.item():.4f}'
+            if self.comp_contrast_loss:
+                loginfo += f'| L_cont: {loss_contrast.item():.4f}'
+            if self.comp_hand_mask_loss:    
+                loginfo += f'| L_hmask: {loss_hand_mask.item():.4f}'
+            if self.comp_regularization_loss:
+                loginfo += f'| L_regu: {loss_regularization.item():.4f}'
 
-            if split == 'training':
-                # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_uv: {loss_uv.item():.4f}, L_diff: {loss_diffusion.item():.4f}'
-                tbar.set_description(loginfo)
-            else:
-                # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_uv: {loss_uv.item():.4f}, L_diff: {loss_diffusion.item():.4f}'
-                tbar.set_description(loginfo)
+            tbar.set_description(loginfo)
 
             # if idx % 20 == 0:
             #     self.write_loginfo_to_txt(loginfo)

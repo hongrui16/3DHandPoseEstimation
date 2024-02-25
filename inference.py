@@ -25,7 +25,7 @@ from network.twoDimHandPoseEstimation import *
 from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
 from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
 from network.sub_modules.MANOLayer import ManoLayer
-from network.Hand3DPoseNet import Hand3DPoseNet
+from network.hand3DPoseNet import Hand3DPoseNet
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
@@ -35,7 +35,7 @@ from utils.plot_anno import *
 
 config.is_inference = True
 config.model_name = config.infer_resume_weight_path.split('/')[-4]
-assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK', "MANO3DHandPose", 'Hand3DPoseNet']
+# assert config.model_name in ['DiffusionHandPose', 'TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK', "MANO3DHandPose", 'Hand3DPoseNet']
 
 class Worker(object):
     def __init__(self, gpu_index = None):
@@ -181,7 +181,7 @@ class Worker(object):
         
             with torch.no_grad():
 
-                refined_joint_coord, _ = self.model(images, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                refined_joint_coord, _, _ = self.model(images, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
                 keypoint_xyz21_pred, keypoint_uv21_pred, keypoint_uv21_from_2D_net = refined_joint_coord
                 if config.model_name == 'TwoDimHandPose':
                     mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)

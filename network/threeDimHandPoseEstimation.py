@@ -33,6 +33,7 @@ class ThreeDimHandPoseEstimation(torch.nn.Module):
         self.forward_kinematics_module = ForwardKinematics(device = device)
         self.bone_angle_pred_model = BoneAnglePrediction()
         self.bone_length_pred_model = BoneLengthPrediction()
+        self.diffusion_loss = torch.tensor(0, device=device)
     
 
     def forward(self, img, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root, pose_x0 = None):
@@ -43,7 +44,7 @@ class ThreeDimHandPoseEstimation(torch.nn.Module):
         refined_joint_coord = self.forward_kinematics_module(root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root)
 
         # refined_joint_coord ## [positions_xyz, positions_uv]
-        return refined_joint_coord, torch.tensor(0)
+        return refined_joint_coord, self.diffusion_loss, [None, None]
 
 
 

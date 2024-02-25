@@ -49,6 +49,6 @@ class Diffusion3DHandPoseEstimation(torch.nn.Module):
 
         diffusion_loss = self.compute_diffusion_loss(pose_x0, resnet_features)
         # refined_joint_coord ## [positions_xyz, positions_uv]
-        return refined_joint_coord, diffusion_loss
+        return refined_joint_coord, diffusion_loss, [None, None]
 
 

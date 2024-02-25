@@ -54,7 +54,7 @@ other_joint_angles_num = 23
 
 '''## MANO parameters'''
 mano_right_hand_path = 'config/mano/models/MANO_RIGHT.pkl'
-mano_pose_num = 6 #6, 10, 45
+mano_pose_num = 10 #6, 10, 45
 mano_beta_num = 10 ### do not change this
 joint_order_switched = True
 
@@ -73,6 +73,8 @@ uv_from_xD = 3 ## this is for where to get output of UV coordinates in TwoDimHan
 is_inference = False
 resume_weight_path = None
 # resume_weight_path = 'logs/Hand3DPoseNet/RHD/run_2024-02-22-03-08-39/DF_model_best.pth.tar'
+resume_weight_path = 'logs/Hand3DPosePriorNetwork/RHD/run_2024-02-25-13-18-29/DF_checkpoint.pth.tar'
+
 
 
 '''## inference parameters'''
@@ -87,6 +89,5 @@ infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_m
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_checkpoint.pth.tar'
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-21-23-46/DF_checkpoint.pth.tar'
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-22-09-31-39/DF_checkpoint.pth.tar'
-infer_resume_weight_path = 'logs/Hand3DPoseNet/RHD/run_2024-02-22-09-21-21/DF_checkpoint.pth.tar'
 
 

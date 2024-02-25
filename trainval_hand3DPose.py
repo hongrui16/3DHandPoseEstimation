@@ -60,7 +60,7 @@ class Worker(object):
             
         
         
-
+        self.model.to(device)
             
         self.criterion = LossCalculation(device=device, comp_xyz_loss = comp_xyz_loss)
 

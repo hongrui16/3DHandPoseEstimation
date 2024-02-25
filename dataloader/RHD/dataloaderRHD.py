@@ -188,6 +188,12 @@ class RHD_HandKeypointsDataset(Dataset):
         keypoint_xyz_right = keypoint_xyz[-21:, :]
         
         cond_left = (num_px_left_hand > num_px_right_hand)
+
+        if cond_left.sum() == 0:
+            data_dict['right_hand_mask'] = hand_map_l[:,::-1]
+        else:
+            data_dict['right_hand_mask'] = hand_map_r
+
         if img_name == '00028.png':
             cond_left = torch.tensor(False)
         #     pass
@@ -370,6 +376,12 @@ class RHD_HandKeypointsDataset(Dataset):
             cropped_img = F.interpolate(cropped_img.unsqueeze(0), size=(self.crop_size, self.crop_size), mode='bilinear', align_corners=False)
             cropped_img = cropped_img.squeeze(0)
             
+            right_hand_mask = data_dict['right_hand_mask'] 
+            right_hand_mask = right_hand_mask[:, y1:y2, x1:x2]
+            # print('cropped_img.shape', cropped_img.shape)
+            right_hand_mask = F.interpolate(right_hand_mask.unsqueeze(0).unsqueeze(0), size=(self.crop_size, self.crop_size), mode='nearest', align_corners=False)
+            right_hand_mask = right_hand_mask.squeeze(0).squeeze(0)
+            data_dict['right_hand_mask'] = right_hand_mask
             # print('data_dict[image_crop].shape', data_dict['image_crop'].shape)
 
             # Modify uv21 coordinates
@@ -462,26 +474,28 @@ class RHD_HandKeypointsDataset(Dataset):
 
 
         elif self.random_crop_to_size:
+            pass
             # Concatenate image, hand_parts, and hand_mask along the channel dimension
             # Concatenate tensors along the channel dimension
-            tensor_stack = torch.cat([data_dict['image'],
-                                    data_dict['hand_parts'].unsqueeze(-1).float(),
-                                    data_dict['hand_mask'].float()], dim=-1)
+        
+            # tensor_stack = torch.cat([data_dict['image'],
+            #                         data_dict['hand_parts'].unsqueeze(-1).float(),
+            #                         data_dict['hand_mask'].float()], dim=-1)
 
-            # Get the shape of the stacked tensor
-            s = tensor_stack.shape
+            # # Get the shape of the stacked tensor
+            # s = tensor_stack.shape
 
-            # Define a RandomCrop transform
-            random_crop = transforms.RandomCrop((self.random_crop_size, self.random_crop_size))
+            # # Define a RandomCrop transform
+            # random_crop = transforms.RandomCrop((self.random_crop_size, self.random_crop_size))
 
-            # Apply random crop
-            tensor_stack_cropped = random_crop(tensor_stack)
+            # # Apply random crop
+            # tensor_stack_cropped = random_crop(tensor_stack)
 
-            # Split the cropped tensor back into image, hand_parts, and hand_mask
-            data_dict = dict()
-            data_dict['image'] = tensor_stack_cropped[:, :, :3]
-            data_dict['hand_parts'] = tensor_stack_cropped[:, :, 3].long()  # Assuming hand_parts needs to be a long tensor
-            data_dict['hand_mask'] = tensor_stack_cropped[:, :, 4:].long()  # Assuming hand_mask needs to be a long tensor
+            # # Split the cropped tensor back into image, hand_parts, and hand_mask
+            # data_dict = dict()
+            # data_dict['image'] = tensor_stack_cropped[:, :, :3]
+            # data_dict['hand_parts'] = tensor_stack_cropped[:, :, 3].long()  # Assuming hand_parts needs to be a long tensor
+            # data_dict['hand_mask'] = tensor_stack_cropped[:, :, 4:].long()  # Assuming hand_mask needs to be a long tensor
 
         if config.model_name == 'MANO3DHandPose' or config.joint_order_switched:
             keypoint_vis21 = data_dict['keypoint_vis21']
