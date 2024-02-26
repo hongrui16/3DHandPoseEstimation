@@ -71,8 +71,9 @@ class Resnet50MANO(nn.Module):
         theta = xs[:,3:config.mano_pose_num+3]
         beta = xs[:,config.mano_pose_num+3:config.mano_pose_num+13] 
 
-        theta = (theta - 1/2) * 2 * math.pi
-        beta = (beta - 1/2) * 0.2
+        rot = (rot - 1/2) * 2 * math.pi
+        theta = (theta - 1/2) * 4
+        beta = (beta - 1/2) * 0.1
         vertices_3d, joint21_3d = self.mano_layer(rot,theta,beta)
         if config.network_regress_uv:
             scale = xs[:,-3] + self.mean[:,0:1]

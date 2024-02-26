@@ -73,12 +73,12 @@ if __name__ == "__main__":
     MANO_RIGHT_pkl = '../config/mano/models/MANO_RIGHT.pkl'
     batch_size = 1
     MANO3DHandPose = Resnet50MANO3DHandPose(device, MANO_RIGHT_pkl).to(device)
-    image = torch.rand(batch_size, 3, 320, 320, device = device)*255
+    image = torch.rand(batch_size, 24, 320, 320, device = device)*255
     camera_intrinsic_matrix = torch.rand(batch_size, 3, 3, device = device)*400
     index_root_bone_length = torch.rand(batch_size, 1, device = device)
     kp_coord_xyz_root = torch.rand(batch_size, 3, device = device)
 
-    refined_joint_coord, _ = MANO3DHandPose(image, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root)
+    refined_joint_coord, _, _ = MANO3DHandPose(image, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root)
 
     joint_xyz21, uv21, _ = refined_joint_coord
     print('joint_xyz21:', joint_xyz21)

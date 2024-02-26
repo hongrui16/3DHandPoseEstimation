@@ -174,6 +174,10 @@ class RHD_HandKeypointsDataset(Dataset):
         cond_r = hand_parts_mask > one_map * 17
         hand_map_l = torch.where(cond_l, one_map, zero_map)
         hand_map_r = torch.where(cond_r, one_map, zero_map)
+
+        data_dict['hand_map_l'] = hand_map_l
+        data_dict['hand_map_r'] = hand_map_r
+
         num_px_left_hand = hand_map_l.sum()
         num_px_right_hand = hand_map_r.sum()
         # print('num_px_left_hand.shape', num_px_left_hand.shape)
@@ -188,9 +192,11 @@ class RHD_HandKeypointsDataset(Dataset):
         keypoint_xyz_right = keypoint_xyz[-21:, :]
         
         cond_left = (num_px_left_hand > num_px_right_hand)
-
-        if cond_left.sum() == 0:
-            data_dict['right_hand_mask'] = hand_map_l[:,::-1]
+        # print('hand_map_l.shape', hand_map_l.shape) #torch.Size([320, 320])
+        # print('hand_map_r.shape', hand_map_r.shape) #torch.Size([320, 320])
+        # print('cond_left', cond_left) #tensor(True)
+        if cond_left.item():
+            data_dict['right_hand_mask'] =  torch.flip(hand_map_l, dims=[1])
         else:
             data_dict['right_hand_mask'] = hand_map_r
 
@@ -377,10 +383,16 @@ class RHD_HandKeypointsDataset(Dataset):
             cropped_img = cropped_img.squeeze(0)
             
             right_hand_mask = data_dict['right_hand_mask'] 
-            right_hand_mask = right_hand_mask[:, y1:y2, x1:x2]
+            right_hand_mask = right_hand_mask[y1:y2, x1:x2]
             # print('cropped_img.shape', cropped_img.shape)
-            right_hand_mask = F.interpolate(right_hand_mask.unsqueeze(0).unsqueeze(0), size=(self.crop_size, self.crop_size), mode='nearest', align_corners=False)
+
+            right_hand_mask = F.interpolate(
+                right_hand_mask.unsqueeze(0).unsqueeze(0).float(),  # Convert to float
+                size=(self.crop_size, self.crop_size), 
+                mode='nearest'
+            )
             right_hand_mask = right_hand_mask.squeeze(0).squeeze(0)
+            
             data_dict['right_hand_mask'] = right_hand_mask
             # print('data_dict[image_crop].shape', data_dict['image_crop'].shape)
 
@@ -575,7 +587,7 @@ class RHD_HandKeypointsDataset(Dataset):
 if __name__ == '__main__':
 
     dataset_dir = '../../dataset/RHD'
-    dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+    # dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
     num_workers = 15
     batch_size=480
     num_workers = 1
@@ -636,6 +648,8 @@ if __name__ == '__main__':
         keypoint_xyz_root = batch['keypoint_xyz_root']
         hand_side = batch['hand_side']
         right_hand_mask = batch['right_hand_mask']
+        hand_parts = batch['hand_parts']
+        hand_map_l = batch['hand_map_l']
         print('img_name:', img_name)
         # print('keypoints_xyz:', keypoints_xyz)
         # print('keypoint_uv:', keypoints_uv)
@@ -681,7 +695,7 @@ if __name__ == '__main__':
         break
         if i > 8:
             break
-    print('right_hand_mask.shape', right_hand_mask.shape)
+    # print('right_hand_mask.shape', right_hand_mask.shape) # torch.Size([1, 256, 256])
     # scoremap_0th_channel = scoremap[0, :, :, 0].cpu().numpy()
     # plt.imshow(scoremap_0th_channel, cmap='gray')  # 'gray' colormap for single-channel visualization
     
@@ -689,5 +703,29 @@ if __name__ == '__main__':
 
     # Use matplotlib to visualize the 0th channel
     plt.imshow(right_hand_mask, cmap='gray')  # 'gray' colormap for single-channel visualization
+    plt.colorbar()  # Optionally add a colorbar to see the mapping of values to colors
+    plt.show()
+
+
+    hand_parts = hand_parts.cpu().squeeze().numpy()
+
+    # Use matplotlib to visualize the 0th channel
+    plt.imshow(hand_parts, cmap='gray')  # 'gray' colormap for single-channel visualization
+    plt.colorbar()  # Optionally add a colorbar to see the mapping of values to colors
+    plt.show()
+
+    
+    hand_map_l = hand_map_l.cpu().squeeze().numpy()
+
+    # Use matplotlib to visualize the 0th channel
+    plt.imshow(hand_map_l, cmap='gray')  # 'gray' colormap for single-channel visualization
+    plt.colorbar()  # Optionally add a colorbar to see the mapping of values to colors
+    plt.show()
+
+
+    image_crop = (image_crop + 0.5).permute(0, 2, 3, 1).cpu().squeeze().numpy()
+
+    # Use matplotlib to visualize the 0th channel
+    plt.imshow(image_crop)  # 'gray' colormap for single-channel visualization
     plt.colorbar()  # Optionally add a colorbar to see the mapping of values to colors
     plt.show()
