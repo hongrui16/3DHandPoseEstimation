@@ -9,7 +9,7 @@ dataset_name = 'RHD'
 
 '''## dataloader parameters'''
 shuffle=True
-num_workers = 6
+num_workers = 5
 
 use_wrist_coord=True
 sigma=25.0
