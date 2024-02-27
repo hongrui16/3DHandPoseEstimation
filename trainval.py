@@ -12,6 +12,7 @@ import GPUtil
 import time
 from datetime import datetime
 import platform
+import argparse
 
 from config import config
 
@@ -371,8 +372,14 @@ class Worker(object):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='parameters')
+    parser.add_argument('--gpuid', type=int, default=0, help='GPU index')
+    parser.add_argument('--fast_debug', action='store_true', help='debug mode')
+
+    args = parser.parse_args()
+    config.gpu_idx = args.gpuid
+    fast_debug = args.fast_debug
     # fast_debug = True
-    fast_debug = False
     worker = Worker(config.gpu_idx)
     worker.forward(fast_debug)
 
