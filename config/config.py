@@ -1,6 +1,10 @@
+import platform
 '''## dataset parameters'''
-dataset_root_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
-# dataset_root_dir = 'dataset/RHD'
+if platform.system() == 'Windows':
+    dataset_root_dir = 'dataset/RHD'
+elif platform.system() == 'Linux':
+    dataset_root_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+
 dataset_name = 'RHD'
 
 '''## dataloader parameters'''

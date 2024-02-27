@@ -10,7 +10,7 @@ import cv2
 import torch.nn.functional as F
 import time
 import matplotlib.pyplot as plt
-
+import platform
 import sys
 sys.path.append('../..')  
 
@@ -585,9 +585,12 @@ class RHD_HandKeypointsDataset(Dataset):
         return joints
 
 if __name__ == '__main__':
-
-    dataset_dir = '../../dataset/RHD'
-    # dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+    if platform.system() == 'Windows':
+        dataset_dir = '../../dataset/RHD'
+    elif platform.system() == 'Linux':
+        dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+    
+    
     num_workers = 15
     batch_size=480
     num_workers = 1

@@ -112,9 +112,9 @@ class LossCalculation(nn.Module):
 
     def compute_regularization_loss(self, theta, beta):
         # Regularization loss for the MANO model
-        # alpha_beta = 10000
-        alpha_beta = 1
-        return (torch.norm(theta) + alpha_beta*torch.norm(beta))/100
+        alpha_beta = 100
+        # alpha_beta = 1
+        return (torch.norm(theta) + alpha_beta*torch.norm(beta))/50
 
 
     def forward(self, pre_xyz, gt_xyz, pre_uv, gt_uv, keypoint_vis, hand_mask = None, theta = None, beta = None, feat1 = None, feat2 = None, label = None, ):

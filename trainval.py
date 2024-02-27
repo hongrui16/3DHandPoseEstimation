@@ -11,6 +11,7 @@ import shutil
 import GPUtil
 import time
 from datetime import datetime
+import platform
 
 from config import config
 
@@ -31,6 +32,13 @@ from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
 
 config.is_inference = False
+
+# if platform.system() == 'Windows':
+#     print("This is Windows")
+# elif platform.system() == 'Linux':
+#     print("This is Linux")
+# elif platform.system() == 'Darwin':
+#     print("This is MacOS")
 
 class Worker(object):
     def __init__(self, gpu_index = None):
@@ -98,10 +106,15 @@ class Worker(object):
         self.metric_mpjpe = MPJPE()
 
         if config.dataset_name == 'RHD':
-            train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+            if platform.system() == 'Windows':
+                train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+                bs = 2
+            elif platform.system() == 'Linux':
+                train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+                bs = config.batch_size
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
-        self.train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers)
-        self.val_loader = DataLoader(val_set, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
+        self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=True, num_workers=config.num_workers)
+        self.val_loader = DataLoader(val_set, batch_size=bs, shuffle=False, num_workers=config.num_workers)
         
         current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
@@ -226,11 +239,15 @@ class Worker(object):
             keypoint_uv21_gt = sample['keypoint_uv21'].to(self.device) # uv coordinate
             keypoint_xyz21_gt = sample['keypoint_xyz21'].to(self.device) # xyz absolute coordinate
             keypoint_xyz21_rel_normed_gt = sample['keypoint_xyz21_rel_normed'].to(self.device) ## normalized xyz coordinates
+            scoremap = sample['scoremap'].to(self.device) #scale length
 
             camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
             gt_hand_mask = sample['right_hand_mask'].to(self.device)
             
-
+            if config.model_name == 'Resnet50MANO3DHandPose':
+                input = torch.cat([image, scoremap], dim=1)
+            else:
+                input = image
             bs, num_points, c = keypoint_xyz21_rel_normed_gt.shape
             # print('keypoint_xyz21_rel_normed_gt.shape', keypoint_xyz21_rel_normed_gt.shape)
             pose_x0 = keypoint_xyz21_rel_normed_gt.view(bs, -1, num_points*c)
@@ -239,12 +256,12 @@ class Worker(object):
 
             self.optimizer.zero_grad()
             if split == 'training':
-                refined_joint_coord, loss_diffusion, theta_beta = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                refined_joint_coord, loss_diffusion, theta_beta = self.model(input, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
                 keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    refined_joint_coord, loss_diffusion, theta_beta = self.model(image, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                    refined_joint_coord, loss_diffusion, theta_beta = self.model(input, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
                     keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
                     if config.model_name == 'TwoDimHandPose':
                         mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
