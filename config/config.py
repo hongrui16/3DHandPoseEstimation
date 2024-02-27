@@ -31,7 +31,7 @@ calculate_scoremap=True ## this must be True
 # model_name = 'Hand3DPoseNet'
 # model_name = 'threeHandShapeAndPoseMANO'
 # model_name = 'Hand3DPosePriorNetwork'
-model_name = 'resnet50MANO3DHandPose'
+model_name = 'Resnet50MANO3DHandPose'
 
 
 
