@@ -116,7 +116,7 @@ class LossCalculation(nn.Module):
         return torch.norm(theta) + alpha_beta*torch.norm(beta)
 
 
-    def forward(self, pre_xyz, gt_xyz, pre_uv, gt_uv, keypoint_vis, feat1 = None, feat2 = None, label = None, hand_mask = None, theta = None, beta = None):
+    def forward(self, pre_xyz, gt_xyz, pre_uv, gt_uv, keypoint_vis, hand_mask = None, theta = None, beta = None, feat1 = None, feat2 = None, label = None, ):
         if self.comp_xyz_loss:
             loss_xyz = self.compute_3d_coord_loss(pre_xyz, gt_xyz, keypoint_vis)
         else:
@@ -149,14 +149,21 @@ class LossCalculation(nn.Module):
 
 if __name__ == '__main__':
     # Use L2Loss class for testing
-    pre_xyz = torch.ones(10, 21, 3) # pre_xyz with all elements being 1
-    gt_xyz = torch.zeros(10, 21, 3) # gt_xyz with all elements 0
-    keypoint_vis = torch.ones(10, 21, 1) # Assume all keypoints are visible
-    keypoint_vis = torch.zeros(10, 21, 1) # Assume all keypoints are invisible
+    pre_xyz = torch.rand(2, 21, 3) # pre_xyz with all elements being 1
+    gt_xyz = torch.rand(2, 21, 3) # gt_xyz with all elements 0
+    pre_uv = torch.rand(2, 21, 2) # pre_xyz with all elements being 1
+    gt_uv = torch.rand(2, 21, 2) # gt_xyz with all elements 0
+    keypoint_vis = torch.zeros(2, 21, 1) # Assume all keypoints are visible
+    keypoint_vis = torch.ones(2, 21, 1) # Assume all keypoints are invisible
+    hand_mask = torch.rand(2, 128, 128) # Assume hand mask is all 1s
+    theta = torch.rand(2, 10) # Assume theta is all 1s
+    beta = torch.rand(2, 10) # Assume beta is all 1s
 
+    comp_xyz_loss = True
+    comp_uv_loss = True
+    comp_hand_mask_loss = True
+    comp_regularization_loss = True
     # Initialize L2Loss instance
-    l2_loss = L2Loss()
-
-    # Calculate loss
-    loss = l2_loss(pre_xyz, gt_xyz, keypoint_vis)
-    print(loss)
+    LossCalculator = LossCalculation(comp_xyz_loss=comp_xyz_loss, comp_uv_loss=comp_uv_loss, comp_hand_mask_loss=comp_hand_mask_loss, comp_regularization_loss=comp_regularization_loss)
+    loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = LossCalculator(pre_xyz, gt_xyz, pre_uv, gt_uv, keypoint_vis, hand_mask=hand_mask, theta=theta, beta=beta)
+    print(loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization)

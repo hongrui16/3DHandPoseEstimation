@@ -5,7 +5,7 @@ dataset_name = 'RHD'
 
 '''## dataloader parameters'''
 shuffle=True
-num_workers = 5
+num_workers = 15
 
 use_wrist_coord=True
 sigma=25.0
@@ -30,8 +30,8 @@ calculate_scoremap=True ## this must be True
 # model_name = 'MANO3DHandPose'
 # model_name = 'Hand3DPoseNet'
 # model_name = 'threeHandShapeAndPoseMANO'
-model_name = 'Hand3DPosePriorNetwork'
-
+# model_name = 'Hand3DPosePriorNetwork'
+model_name = 'resnet50MANO3DHandPose'
 
 
 
@@ -73,7 +73,6 @@ uv_from_xD = 3 ## this is for where to get output of UV coordinates in TwoDimHan
 is_inference = False
 resume_weight_path = None
 # resume_weight_path = 'logs/Hand3DPoseNet/RHD/run_2024-02-22-03-08-39/DF_model_best.pth.tar'
-resume_weight_path = 'logs/Hand3DPosePriorNetwork/RHD/run_2024-02-25-13-18-29/DF_checkpoint.pth.tar'
 
 
 
