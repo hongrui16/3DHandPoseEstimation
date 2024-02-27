@@ -393,7 +393,7 @@ class RHD_HandKeypointsDataset(Dataset):
             )
             right_hand_mask = right_hand_mask.squeeze(0).squeeze(0)
             
-            data_dict['right_hand_mask'] = right_hand_mask
+            data_dict['right_hand_mask'] = (right_hand_mask>0).float()
             # print('data_dict[image_crop].shape', data_dict['image_crop'].shape)
 
             # Modify uv21 coordinates

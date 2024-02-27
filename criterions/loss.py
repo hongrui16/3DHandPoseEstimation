@@ -112,8 +112,9 @@ class LossCalculation(nn.Module):
 
     def compute_regularization_loss(self, theta, beta):
         # Regularization loss for the MANO model
-        alpha_beta = 10000
-        return torch.norm(theta) + alpha_beta*torch.norm(beta)
+        # alpha_beta = 10000
+        alpha_beta = 1
+        return (torch.norm(theta) + alpha_beta*torch.norm(beta))/100
 
 
     def forward(self, pre_xyz, gt_xyz, pre_uv, gt_uv, keypoint_vis, hand_mask = None, theta = None, beta = None, feat1 = None, feat2 = None, label = None, ):
@@ -156,6 +157,7 @@ if __name__ == '__main__':
     keypoint_vis = torch.zeros(2, 21, 1) # Assume all keypoints are visible
     keypoint_vis = torch.ones(2, 21, 1) # Assume all keypoints are invisible
     hand_mask = torch.rand(2, 128, 128) # Assume hand mask is all 1s
+    hand_mask = torch.zeros(2, 128, 128) # Assume hand mask is all 1s
     theta = torch.rand(2, 10) # Assume theta is all 1s
     beta = torch.rand(2, 10) # Assume beta is all 1s
 
