@@ -11,6 +11,8 @@ import shutil
 import GPUtil
 import time
 from datetime import datetime
+import platform
+
 
 from config import config
 
@@ -47,7 +49,7 @@ class Worker(object):
             print("CUDA is unavailable, using CPU")
             device = torch.device("cpu")
         
-        assert config.model_name in ['Hand3DPoseNet', 'Hand3DPosePriorNetwork']
+        # assert config.model_name in ['Hand3DPoseNet', 'Hand3DPosePriorNetwork']
 
         self.device = device
 
@@ -57,7 +59,8 @@ class Worker(object):
         elif config.model_name == 'Hand3DPosePriorNetwork':
             self.model = Hand3DPosePriorNetwork()
             comp_xyz_loss = True
-            
+        else:
+            raise ValueError('model_name not supported')
         
         
         self.model.to(device)
@@ -69,11 +72,15 @@ class Worker(object):
         self.metric_mpjpe = MPJPE()
 
         if config.dataset_name == 'RHD':
-            train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
-            # train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+            if platform.system() == 'Windows':
+                train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+                bs = 2
+            elif platform.system() == 'Linux':
+                train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+                bs = config.batch_size
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
-        self.train_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, num_workers=config.num_workers)
-        self.val_loader = DataLoader(val_set, batch_size=config.batch_size, shuffle=False, num_workers=config.num_workers)
+        self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=True, num_workers=config.num_workers)
+        self.val_loader = DataLoader(val_set, batch_size=bs, shuffle=False, num_workers=config.num_workers)
         
         current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 
@@ -192,7 +199,12 @@ class Worker(object):
             if config.model_name == 'Hand3DPoseNet':
                 input = image
             elif config.model_name == 'Hand3DPosePriorNetwork':
-                input = scoremap
+                if config.input_channels == 24:
+                    input = torch.cat([image, scoremap], dim=1)
+                elif config.input_channels == 21:
+                    input = scoremap
+                else:
+                    raise ValueError('input_channels are not supported')
             else:
                 raise ValueError('model_name not supported')
             
@@ -215,7 +227,8 @@ class Worker(object):
             # print('keypoint_uv21_pred[0]', keypoint_uv21_pred[0])
             # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
 
-            loss_xyz, _, _ = self.criterion(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, None, None, keypoint_vis21_gt) 
+            # loss_xyz, _, _ = self.criterion(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, None, None, keypoint_vis21_gt) 
+            loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = self.criterion(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, None, None, keypoint_vis21_gt) 
             loss_rot = torch.mean(torch.square(rot_mat_pred - rot_mat_gt))
             # print('loss_xyz', loss_xyz)
             # print('loss_rot', loss_rot)
