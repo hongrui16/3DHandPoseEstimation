@@ -9,7 +9,7 @@ dataset_name = 'RHD'
 
 '''## dataloader parameters'''
 shuffle=True
-num_workers = 5
+num_workers = 10
 
 use_wrist_coord=True
 sigma=25.0
@@ -23,6 +23,7 @@ crop_scale_noise=False
 crop_offset_noise=False
 scoremap_dropout=False
 calculate_scoremap=True ## this must be True
+use_val_dataset_to_debug = True
 
 
 '''network parameters''' 

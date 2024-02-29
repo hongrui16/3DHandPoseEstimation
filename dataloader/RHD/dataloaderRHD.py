@@ -228,8 +228,10 @@ class RHD_HandKeypointsDataset(Dataset):
         # Make coords relative to root joint
         keypoint_xyz_root = keypoint_xyz21[0, :]  # this is the palm coord
         keypoint_xyz21_rel = keypoint_xyz21 - keypoint_xyz_root # relative coords in metric coords
-        # index_root_bone_length = torch.sqrt((keypoint_xyz21_rel[12, :] - keypoint_xyz21_rel[11, :]).pow(2).sum())
-        index_root_bone_length = torch.sqrt((keypoint_xyz21_rel[12, :]).pow(2).sum())
+        if not self.use_wrist_coord:
+            index_root_bone_length = torch.sqrt((keypoint_xyz21_rel[12, :] - keypoint_xyz21_rel[11, :]).pow(2).sum())
+        else:
+            index_root_bone_length = torch.sqrt((keypoint_xyz21_rel[12, :]).pow(2).sum())
 
         # print('index_root_bone_length', index_root_bone_length)
         data_dict['keypoint_scale'] = index_root_bone_length.unsqueeze(0)

@@ -76,7 +76,10 @@ class Worker(object):
                 train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
                 bs = 2
             elif platform.system() == 'Linux':
-                train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+                if config.use_val_dataset_to_debug:
+                    train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+                else:
+                    train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
                 bs = config.batch_size
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
         self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=True, num_workers=config.num_workers)

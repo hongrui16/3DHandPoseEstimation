@@ -111,7 +111,10 @@ class Worker(object):
                 train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
                 bs = 2
             elif platform.system() == 'Linux':
-                train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+                if config.use_val_dataset_to_debug:
+                    train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+                else:
+                    train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
                 bs = config.batch_size
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
         self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=True, num_workers=config.num_workers)
@@ -288,7 +291,7 @@ class Worker(object):
                 self.optimizer.step()
             loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
             if not split == 'training':                            
-                loginfo += f'MPJPE: {mpjpe.item():.4f}'
+                loginfo += f'| MPJPE: {mpjpe.item():.4f}'
             if self.comp_diffusion_loss:
                 loginfo += f'| L_diff: {loss_diffusion.item():.4f}'
             if self.comp_xyz_loss:
