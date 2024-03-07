@@ -10,9 +10,9 @@ from config import config
 from network.sub_modules.resnetMANO import ResNet_Mano, BasicBlock
 
 
-class ThreeHandShapeAndPose(torch.nn.Module):
+class ThreeHandShapeAndPoseMANO(torch.nn.Module):
     def __init__(self, device = 'cpu', input_option=1, mano_right_hand_path = None):
-        super(ThreeHandShapeAndPose, self).__init__()
+        super(ThreeHandShapeAndPoseMANO, self).__init__()
         self.device = device
         if mano_right_hand_path is None:
             mano_right_hand_path = config.mano_right_hand_path
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     batch_size = 1
     MANO_RIGHT_pkl = '../config/mano/models/MANO_RIGHT.pkl'
 
-    model = ThreeHandShapeAndPose(device, mano_right_hand_path=MANO_RIGHT_pkl).to(device)
+    model = ThreeHandShapeAndPoseMANO(device, mano_right_hand_path=MANO_RIGHT_pkl).to(device)
     image = torch.rand(batch_size, 3, 320, 320, device = device)*255
     camera_intrinsic_matrix = torch.rand(batch_size, 3, 3, device = device)*400
     index_root_bone_length = torch.rand(batch_size, 1, device = device)

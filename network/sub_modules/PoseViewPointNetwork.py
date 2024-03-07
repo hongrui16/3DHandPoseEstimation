@@ -40,6 +40,7 @@ class PosePrior(nn.Module):
 
         output_dim = 63 # 21 * 3
         sequential = build_sequtial(num_output_features, output_dim, 2, activation='LeakyReLU', use_sigmoid=False)
+        # sequential = build_sequtial(num_output_features, output_dim, 2, activation='LeakyReLU', use_sigmoid=True)
         #Create Sequential model
         self.mlp = torch.nn.Sequential(*sequential)
 
@@ -55,7 +56,7 @@ class PosePrior(nn.Module):
         """
         x = self.extended_resnet18_extractor(x)
         x = self.mlp(x)
-
+        
         return x
 
 

@@ -572,13 +572,17 @@ if __name__  == '__main__':
          1,1,1,1,
          1,1,1,1,
          1,1,1,1]])
+    # camera_intrinsic_matrix = torch.tensor(
+    # [[[320.9000,   0.0000, 160.0000],
+    #      [  0.0000, 320.9000, 160.0000],
+    #      [  0.0000,   0.0000,   1.0000]]], dtype=torch.float32)
     camera_intrinsic_matrix = torch.tensor(
-    [[[320.9000,   0.0000, 160.0000],
-         [  0.0000, 320.9000, 160.0000],
+    [[[600.000,   0.0000, 300.0000],
+         [  0.0000, 600.000, 300.0000],
          [  0.0000,   0.0000,   1.0000]]], dtype=torch.float32)
 
     index_root_bone_length = torch.tensor([[1]])
-    kp_coord_xyz_root = torch.tensor([[1,1,1]])
-    kp_coord_xyz21_absolute, kp_coord_uv21 = forward_kinematics.forward(root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root)
+    kp_coord_xyz_root = torch.tensor([[0,0,0]])
+    kp_coord_xyz21_absolute, kp_coord_uv21, _ = forward_kinematics(root_angles, other_angles, bone_lengths, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root)
     print('kp_coord_xyz21_absolute', kp_coord_xyz21_absolute)
     print('kp_coord_uv21', kp_coord_uv21)

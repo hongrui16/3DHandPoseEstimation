@@ -60,7 +60,7 @@ class ContrastiveLoss(nn.Module):
 
 
 class LossCalculation(nn.Module):
-    def __init__(self, device = 'cpu', loss_type = 'L2', comp_xyz_loss = True, comp_uv_loss = False, comp_contrastive_loss = False, comp_hand_mask_loss = False, comp_regularization_loss = False):
+    def __init__(self, device = 'cpu', loss_type = 'L2', comp_xyz_loss = False, comp_uv_loss = False, comp_contrastive_loss = False, comp_hand_mask_loss = False, comp_regularization_loss = False):
         super(LossCalculation, self).__init__()
         assert loss_type in ['L2', 'L2']
         self.device = device
@@ -121,27 +121,32 @@ class LossCalculation(nn.Module):
         if self.comp_xyz_loss:
             loss_xyz = self.compute_3d_coord_loss(pre_xyz, gt_xyz, keypoint_vis)
         else:
-            loss_xyz = self.zero_tensor
+            # loss_xyz = self.zero_tensor
+            loss_xyz = None
 
         if self.comp_uv_loss:
             loss_uv = self.compute_uv_coord_loss(pre_uv, gt_uv, keypoint_vis)
         else:
-            loss_uv = self.zero_tensor
+            # loss_uv = self.zero_tensor
+            loss_uv = None
 
         if self.comp_contrastive_loss:
             loss_contrast = self.compute_contrastive_loss(feat1, feat2, label)
         else:
-            loss_contrast = self.zero_tensor
+            # loss_contrast = self.zero_tensor
+            loss_contrast = None
         
         if self.comp_hand_mask_loss:
             loss_hand_mask = self.compute_hand_mask_loss(pre_uv, gt_uv, hand_mask)
         else:
-            loss_hand_mask = self.zero_tensor
+            # loss_hand_mask = self.zero_tensor
+            loss_hand_mask = None
         
         if self.comp_regularization_loss:
             loss_regularization = self.compute_regularization_loss(theta, beta)
         else:
-            loss_regularization = self.zero_tensor
+            # loss_regularization = self.zero_tensor
+            loss_regularization = None
 
         
         # loss = loss_xyz + loss_uv + loss_contrast

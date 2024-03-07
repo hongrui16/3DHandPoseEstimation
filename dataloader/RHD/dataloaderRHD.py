@@ -678,8 +678,8 @@ if __name__ == '__main__':
 
         # print('keypoint_xyz21_rel_normed', keypoint_xyz21_rel_normed)
         # print('keypoint_uv21', keypoint_uv21)
-        # print('keypoint_scale', keypoint_scale)
-        # print('keypoint_xyz_root', keypoint_xyz_root, keypoint_xyz_root.shape)
+        # print('keypoint_scale', keypoint_scale.shape) #torch.Size([bs, 1])
+        # print('keypoint_xyz_root', keypoint_xyz_root.shape) #torch.Size([bs, 3])
         
         # print('images.shape:', images.shape) # torch.Size([BS, 3, 3])
         # print('image_crop.shape:', image_crop.shape) # torch.Size([BS, 3, 3])
@@ -692,8 +692,8 @@ if __name__ == '__main__':
 
         # kp_coord_xyz21_rel_can = batch['kp_coord_xyz21_rel_can']
         # rot_mat = batch['rot_mat']
-        # print('kp_coord_xyz21_rel_can.shape',kp_coord_xyz21_rel_can.shape)
-        # print('rot_mat.shape',rot_mat.shape)
+        # print('kp_coord_xyz21_rel_can.shape',kp_coord_xyz21_rel_can.shape) # torch.Size([1, 21, 3])
+        # print('rot_mat.shape',rot_mat.shape) # torch.Size([1, 3, 3])
         # break
         print(f'i: {i}\n')
         i += 1

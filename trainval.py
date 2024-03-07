@@ -20,17 +20,22 @@ from config import config
 # from network.sub_modules.diffusionJointEstimation import DiffusionJointEstimation
 # from network.sub_modules.resNetFeatureExtractor import ResNetFeatureExtractor
 # from network.sub_modules.forwardKinematicsLayer import ForwardKinematics
-from network.diffusion3DHandPoseEstimation import Diffusion3DHandPoseEstimation
-from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation, TwoDimHandPoseWithFKEstimation
-from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
-from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
-from network.threeHandShapeAndPoseMANO import ThreeHandShapeAndPose
-from network.resnet50MANO3DHandPose import Resnet50MANO3DHandPose
+from network.DiffusionHandPose import DiffusionHandPose
+from network.MANO3DHandPose import MANO3DHandPose
+from network.OnlyThreeDimHandPose import OnlyThreeDimHandPose
+from network.Resnet50MANO3DHandPose import Resnet50MANO3DHandPose
+from network.ThreeDimHandPose import ThreeDimHandPose
+from network.ThreeHandShapeAndPoseMANO import ThreeHandShapeAndPoseMANO
+from network.TwoDimHandPose import TwoDimHandPose
+from network.TwoDimHandPoseWithFK import TwoDimHandPoseWithFK
+
+
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
+from utils.coordinate_trans import batch_project_xyz_to_uv
 
 config.is_inference = False
 
@@ -68,25 +73,31 @@ class Worker(object):
         self.comp_contrast_loss = False
         
         if config.model_name == 'TwoDimHandPose':
-            self.model = TwoDimHandPoseEstimation(device)
+            self.model = TwoDimHandPose(device)
             self.comp_xyz_loss = False
+            self.comp_uv_loss = True
         elif config.model_name == 'TwoDimHandPoseWithFK':
-            self.model = TwoDimHandPoseWithFKEstimation(device)
-            self.comp_xyz_loss = True 
+            self.model = TwoDimHandPoseWithFK(device)
+            self.comp_xyz_loss = True
+            self.comp_uv_loss = True
         elif config.model_name == 'DiffusionHandPose':
-            self.model = Diffusion3DHandPoseEstimation(device)
+            self.model = DiffusionHandPose(device)
             self.comp_xyz_loss = True
+            self.comp_diffusion_loss = True
+            self.comp_uv_loss = True
         elif config.model_name == 'ThreeDimHandPose':
-            self.model = ThreeDimHandPoseEstimation(device)
+            self.model = ThreeDimHandPose(device)
             self.comp_xyz_loss = True
+            self.comp_uv_loss = True
         elif config.model_name == 'OnlyThreeDimHandPose':
-            self.model = OnlyThreeDimHandPoseEstimation(device)
+            self.model = OnlyThreeDimHandPose(device)
             self.comp_xyz_loss = True 
         elif config.model_name == 'MANO3DHandPose':
-            self.model = MANO3DHandPoseEstimation(device)
+            self.model = MANO3DHandPose(device)
             self.comp_xyz_loss = True
-        elif config.model_name == 'threeHandShapeAndPoseMANO':
-            self.model = ThreeHandShapeAndPose(device)
+            self.comp_uv_loss = True
+        elif config.model_name == 'ThreeHandShapeAndPoseMANO':
+            self.model = ThreeHandShapeAndPoseMANO(device)
             self.comp_xyz_loss = True
             config.compute_uv_loss = False
             self.comp_uv_loss = False
@@ -113,11 +124,13 @@ class Worker(object):
             elif platform.system() == 'Linux':
                 if config.use_val_dataset_to_debug:
                     train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+                    shuffle = False
                 else:
                     train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+                    shuffle = True
                 bs = config.batch_size
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
-        self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=True, num_workers=config.num_workers)
+        self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=shuffle, num_workers=config.num_workers)
         self.val_loader = DataLoader(val_set, batch_size=bs, shuffle=False, num_workers=config.num_workers)
         
         current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
@@ -192,10 +205,21 @@ class Worker(object):
                 self.start_epoch = 0
 
         self.model.to(device)
+
+        self.input_shape = (config.batch_size, config.input_channels, 256, 256)
+        self.kp_vis21_shape = (config.batch_size, 21, 1)
+        self.kp_coord_xyz21_shape = (config.batch_size, 21, 3)
+        self.kp_coord_21_shape = (config.batch_size, 21, 2)
+        self.scoremap_shape = (config.batch_size, 21, 256, 256)
+        self.hand_shape = (config.batch_size, 256, 256)
+        self.camera_intrinsic_matrix_shape = (config.batch_size, 3, 3)
+        self.kp_xyz_root_shape = (config.batch_size, 3)
+        self.kp_scale_shape = (config.batch_size, 1)
+        print(f'log dir: {self.exp_dir}')
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
 
         
-    def trainval(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
+    def trainval_real(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
         assert split in ['training', 'validation']
         if split == 'training':
             self.model.train()
@@ -207,6 +231,12 @@ class Worker(object):
         width = 10  # Total width including the string length
         formatted_split = split.rjust(width)
         epoch_loss = []
+        epoch_loss_diff = []
+        epoch_loss_xyz = []
+        epoch_loss_uv = []
+        epoch_loss_contrast = []
+        epoch_loss_hand_mask = []
+        epoch_loss_regularization = []
         epoch_mpjpe = []
 
         # data_iter = iter(tbar)  # 创建 DataLoader 的迭代器
@@ -280,30 +310,40 @@ class Worker(object):
             # print('keypoint_uv21_pred[0]', keypoint_uv21_pred[0])
             # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
             theta, beta = theta_beta
-
+            loss = torch.tensor(0, dtype=torch.float, device=self.device)
             loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = self.criterion(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt, hand_mask = gt_hand_mask, theta = theta, beta = beta) 
-            if config.model_name == 'DiffusionHandPose':
-                loss = loss_xyz + loss_uv/100000 + loss_contrast + loss_diffusion + loss_hand_mask + loss_regularization
-            else:
-                loss = loss_xyz + loss_uv/100000 + loss_contrast + loss_hand_mask + loss_regularization
-            if split == 'training':
-                loss.backward()
-                self.optimizer.step()
+            
             loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
             if not split == 'training':                            
                 loginfo += f'| MPJPE: {mpjpe.item():.4f}'
             if self.comp_diffusion_loss:
-                loginfo += f'| L_diff: {loss_diffusion.item():.4f}'
+                loginfo += f'| L_diff: {loss_diffusion.item():.4f}'                
+                epoch_loss_diff.append(loss_diffusion.item())
+                loss += loss_diffusion
             if self.comp_xyz_loss:
                 loginfo += f'| L_xyz: {loss_xyz.item():.4f}'
+                epoch_loss_xyz.append(loss_xyz.item())
+                loss += loss_xyz
             if self.comp_uv_loss:
                 loginfo += f'| L_uv: {loss_uv.item():.4f}'
+                epoch_loss_uv.append(loss_uv.item())
+                loss += loss_uv/100000
             if self.comp_contrast_loss:
                 loginfo += f'| L_cont: {loss_contrast.item():.4f}'
+                epoch_loss_contrast.append(loss_contrast.item())
+                loss += loss_contrast
             if self.comp_hand_mask_loss:    
                 loginfo += f'| L_hmask: {loss_hand_mask.item():.4f}'
+                epoch_loss_hand_mask.append(loss_hand_mask.item())
+                loss += loss_hand_mask
             if self.comp_regularization_loss:
                 loginfo += f'| L_regu: {loss_regularization.item():.4f}'
+                epoch_loss_regularization.append(loss_regularization.item())
+                loss += loss_regularization
+        
+            if split == 'training':
+                loss.backward()
+                self.optimizer.step()
 
             tbar.set_description(loginfo)
 
@@ -321,20 +361,187 @@ class Worker(object):
             if not split == 'training':
                 iter_mpjpe_value = round(mpjpe.item(), 5)
                 epoch_mpjpe.append(iter_mpjpe_value)
-                    
+            
+            del loss
+            # if config.use_val_dataset_to_debug:
+            #     break
+        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'     
+        if self.comp_diffusion_loss:
+            epoch_info += f'| L_diff: {np.round(np.mean(epoch_loss_diff), 4)}'
+        if self.comp_xyz_loss:
+            epoch_info += f'| L_xyz: {np.round(np.mean(epoch_loss_xyz), 4)}'
+        if self.comp_uv_loss:
+            epoch_info += f'| L_uv: {np.round(np.mean(epoch_loss_uv), 4)}'
+        if self.comp_contrast_loss:
+            epoch_info += f'| L_cont: {np.round(np.mean(epoch_loss_contrast), 4)}'
+        if self.comp_hand_mask_loss:    
+            epoch_info += f'| L_hmask: {np.round(np.mean(epoch_loss_hand_mask), 4)}'
+        if self.comp_regularization_loss:
+            epoch_info += f'| L_regu: {np.round(np.mean(epoch_loss_regularization), 4)}'
         if not split == 'training':
             self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
-            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}, MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
+            epoch_info +=  f'\nMPJPE: {np.round(np.mean(epoch_mpjpe), 5)}' 
             epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
         else:
             self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
-            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'
+            epoch_mpjpe = None
+
+        print(epoch_info)
+        self.write_loginfo_to_txt(epoch_info)
+        self.write_loginfo_to_txt('')
+        return epoch_mpjpe
+
+    
+        
+    def trainval_fake(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
+        assert split in ['training', 'validation']
+        if split == 'training':
+            self.model.train()
+        else:
+            self.model.eval()
+
+        num_iter = 20
+        tbar = tqdm(range(num_iter))
+
+        width = 10  # Total width including the string length
+        formatted_split = split.rjust(width)
+        epoch_loss = []
+        epoch_loss_diff = []
+        epoch_loss_xyz = []
+        epoch_loss_uv = []
+        epoch_loss_contrast = []
+        epoch_loss_hand_mask = []
+        epoch_loss_regularization = []
+        epoch_mpjpe = []
+
+        for idx in tbar: # 6 ~ 10 s
+            if fast_debug and iter > 2:
+                break
+            
+            image = torch.zeros(self.input_shape).to(self.device) + 0.5
+            bs, c, h, w = image.shape
+            image[:, :, -h//2:] = -0.5
+            keypoint_vis21_gt = torch.ones(self.kp_vis21_shape, dtype=torch.bool, device=self.device)
+            index_root_bone_length = torch.ones(self.kp_scale_shape, device=self.device)
+            keypoint_xyz_root = torch.zeros(self.kp_xyz_root_shape).to(self.device)
+            keypoint_xyz21_gt = torch.zeros(self.kp_coord_xyz21_shape).to(self.device) + 0.5
+            keypoint_xyz21_gt[:, 0] = 0
+            keypoint_xyz21_gt[:, -10:] = -0.5
+            keypoint_xyz21_rel_normed_gt = keypoint_xyz21_gt
+            scoremap = torch.zeros(self.scoremap_shape).to(self.device)
+            camera_intrinsic_matrix = torch.zeros(self.camera_intrinsic_matrix_shape).to(self.device)
+            camera_intrinsic_matrix[:, 0, 0] = 600
+            camera_intrinsic_matrix[:, 1, 1] = 600
+            camera_intrinsic_matrix[:, 0, 2] = 300
+            camera_intrinsic_matrix[:, 1, 2] = 300
+            keypoint_uv21_gt = batch_project_xyz_to_uv(keypoint_xyz21_gt, camera_intrinsic_matrix)
+            gt_hand_mask = torch.ones(self.hand_shape, dtype=torch.bool, device=self.device)
+
+            if config.model_name == 'Resnet50MANO3DHandPose':
+                input = torch.cat([image, scoremap], dim=1)
+            else:
+                input = image
+            bs, num_points, c = keypoint_xyz21_rel_normed_gt.shape
+            # print('keypoint_xyz21_rel_normed_gt.shape', keypoint_xyz21_rel_normed_gt.shape)
+            pose_x0 = keypoint_xyz21_rel_normed_gt.view(bs, -1, num_points*c)
+            # print('pose_x0.shape', pose_x0.shape)
+            # print('index_root_bone_length.shape', index_root_bone_length.shape)
+
+            self.optimizer.zero_grad()
+            if split == 'training':
+                refined_joint_coord, loss_diffusion, theta_beta = self.model(input, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
+                mpjpe = None
+            else:
+                with torch.no_grad():
+                    refined_joint_coord, loss_diffusion, theta_beta = self.model(input, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                    keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
+                    if config.model_name == 'TwoDimHandPose':
+                        mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
+                    else:
+                        # elif model_name == 'DiffusionHandPose' or model_name == 'ThreeDimHandPose':
+                        mpjpe = self.metric_mpjpe(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_vis21_gt)
+            
+            # print('keypoint_xyz21_gt[0]', keypoint_xyz21_gt[0])
+            # print('keypoint_xyz21_pred[0]', keypoint_xyz21_pred[0])
+            
+            # print('keypoint_uv21_gt[0]', keypoint_uv21_gt[0])
+            # print('keypoint_uv21_pred[0]', keypoint_uv21_pred[0])
+            # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
+            theta, beta = theta_beta
+            loss = torch.tensor(0, dtype=torch.float, device=self.device)
+            loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = self.criterion(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt, hand_mask = gt_hand_mask, theta = theta, beta = beta) 
+            
+            loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
+            if not split == 'training':                            
+                loginfo += f'| MPJPE: {mpjpe.item():.4f}'
+            if self.comp_diffusion_loss:
+                loginfo += f'| L_diff: {loss_diffusion.item():.4f}'                
+                epoch_loss_diff.append(loss_diffusion.item())
+                loss += loss_diffusion
+            if self.comp_xyz_loss:
+                loginfo += f'| L_xyz: {loss_xyz.item():.4f}'
+                epoch_loss_xyz.append(loss_xyz.item())
+                loss += loss_xyz
+            if self.comp_uv_loss:
+                loginfo += f'| L_uv: {loss_uv.item():.4f}'
+                epoch_loss_uv.append(loss_uv.item())
+                loss += loss_uv/100000
+            if self.comp_contrast_loss:
+                loginfo += f'| L_cont: {loss_contrast.item():.4f}'
+                epoch_loss_contrast.append(loss_contrast.item())
+                loss += loss_contrast
+            if self.comp_hand_mask_loss:    
+                loginfo += f'| L_hmask: {loss_hand_mask.item():.4f}'
+                epoch_loss_hand_mask.append(loss_hand_mask.item())
+                loss += loss_hand_mask
+            if self.comp_regularization_loss:
+                loginfo += f'| L_regu: {loss_regularization.item():.4f}'
+                epoch_loss_regularization.append(loss_regularization.item())
+                loss += loss_regularization
+        
+            if split == 'training':
+                loss.backward()
+                self.optimizer.step()
+
+            tbar.set_description(loginfo)
+
+
+
+            iter_loss_value = round(loss.item(), 5)
+            epoch_loss.append(iter_loss_value)
+            if not split == 'training':
+                iter_mpjpe_value = round(mpjpe.item(), 5)
+                epoch_mpjpe.append(iter_mpjpe_value)
+            
+            del loss
+            # if config.use_val_dataset_to_debug:
+            #     break
+        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'     
+        if self.comp_diffusion_loss:
+            epoch_info += f'| L_diff: {np.round(np.mean(epoch_loss_diff), 4)}'
+        if self.comp_xyz_loss:
+            epoch_info += f'| L_xyz: {np.round(np.mean(epoch_loss_xyz), 4)}'
+        if self.comp_uv_loss:
+            epoch_info += f'| L_uv: {np.round(np.mean(epoch_loss_uv), 4)}'
+        if self.comp_contrast_loss:
+            epoch_info += f'| L_cont: {np.round(np.mean(epoch_loss_contrast), 4)}'
+        if self.comp_hand_mask_loss:    
+            epoch_info += f'| L_hmask: {np.round(np.mean(epoch_loss_hand_mask), 4)}'
+        if self.comp_regularization_loss:
+            epoch_info += f'| L_regu: {np.round(np.mean(epoch_loss_regularization), 4)}'
+        if not split == 'training':
+            self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
+            epoch_info +=  f'\nMPJPE: {np.round(np.mean(epoch_mpjpe), 5)}' 
+            epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
+        else:
+            self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
             epoch_mpjpe = None
         print(epoch_info)
         self.write_loginfo_to_txt(epoch_info)
         self.write_loginfo_to_txt('')
         return epoch_mpjpe
-    
+        
     def save_checkpoint(self, state, is_best, model_name='', ouput_weight_dir = ''):
         """Saves checkpoint to disk"""
         os.makedirs(ouput_weight_dir, exist_ok=True)
@@ -355,22 +562,26 @@ class Worker(object):
     def forward(self, fast_debug = False):
         for epoch in range(self.start_epoch, config.max_epoch): 
             # _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
-            _ = self.trainval(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
-
-            mpjpe = self.trainval(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
-            checkpoint = {
-                        'epoch': epoch + 1,
-                        'state_dict': self.model.state_dict(),
-                        'optimizer': self.optimizer.state_dict(),
-                        'MPJPE': mpjpe,                
-                        }
-            if mpjpe < self.best_val_epoch_mpjpe:
-                self.best_val_epoch_mpjpe = mpjpe
-                is_best = True
+            if config.use_fake_data:
+                _ = self.trainval_fake(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
+                mpjpe = self.trainval_fake(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
             else:
-                is_best = False
+                _ = self.trainval_real(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
 
-            self.save_checkpoint(checkpoint, is_best, 'DF', self.exp_dir)
+                mpjpe = self.trainval_real(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
+                checkpoint = {
+                            'epoch': epoch + 1,
+                            'state_dict': self.model.state_dict(),
+                            'optimizer': self.optimizer.state_dict(),
+                            'MPJPE': mpjpe,                
+                            }
+                if mpjpe < self.best_val_epoch_mpjpe:
+                    self.best_val_epoch_mpjpe = mpjpe
+                    is_best = True
+                else:
+                    is_best = False
+
+                self.save_checkpoint(checkpoint, is_best, 'DF', self.exp_dir)
             print('')
 
 

@@ -26,12 +26,13 @@ from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyT
 from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
 from network.sub_modules.MANOLayer import ManoLayer
 from network.hand3DPoseNet import Hand3DPoseNet
+from network.hand3DPosePriorNetwork import Hand3DPosePriorNetwork
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
-from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
 from utils.plot_anno import *
+from utils.coordinate_trans import batch_project_xyz_to_uv
 
 config.is_inference = True
 config.model_name = config.infer_resume_weight_path.split('/')[-4]
@@ -69,7 +70,10 @@ class Worker(object):
             self.model = MANO3DHandPoseEstimation(device)
         elif config.model_name == 'Hand3DPoseNet':
             self.model = Hand3DPoseNet(device)
-
+        elif config.model_name == 'Hand3DPosePriorNetwork':
+            self.model = Hand3DPosePriorNetwork(device)
+        else:
+            raise ValueError(f'config.model_name {config.model_name} is not supported')
         
         self.model.to(device)
 
@@ -167,6 +171,22 @@ class Worker(object):
             keypoint_xyz21_gt = sample['keypoint_xyz21'].to(self.device) # xyz absolute coordinate
             keypoint_xyz21_rel_normed_gt = sample['keypoint_xyz21_rel_normed'].to(self.device) ## normalized xyz coordinates
             camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
+            scoremap = sample['scoremap'].to(self.device) #scale length
+
+            kp_coord_xyz_root = keypoint_xyz_root.unsqueeze(1)  # [bs, 3] -> [bs, 1, 3]
+            scale = index_root_bone_length.unsqueeze(-1)  # [bs, 1] -> [bs, 1, 1]
+            verify_gt_xyz21 = keypoint_xyz21_rel_normed_gt * scale + kp_coord_xyz_root
+            verify_gt_uv21 = batch_project_xyz_to_uv(verify_gt_xyz21, camera_intrinsic_matrix)
+            if config.input_channels == 24:
+                input = torch.cat([images, scoremap], dim=1)
+            elif config.input_channels == 21:
+                input = scoremap
+            elif config.input_channels == 3:
+                input = images
+            else:
+                raise ValueError(f'config.input_channels {config.input_channels} is not supported')
+            
+
             img_names = sample['img_name']
             # print('img_names', img_names)
             # print('img_names[0]', img_names[0])
@@ -181,7 +201,7 @@ class Worker(object):
         
             with torch.no_grad():
 
-                refined_joint_coord, _, _ = self.model(images, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                refined_joint_coord, _, _ = self.model(input, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
                 keypoint_xyz21_pred, keypoint_uv21_pred, keypoint_uv21_from_2D_net = refined_joint_coord
                 if config.model_name == 'TwoDimHandPose':
                     mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
@@ -200,7 +220,9 @@ class Worker(object):
                 if config.model_name in ['TwoDimHandPose', 'ThreeDimHandPose', 'OnlyThreeDimHandPose', 'TwoDimHandPoseWithFK']:
                     plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), gt_uv21 = keypoint_uv21_gt[0].cpu().numpy(), img_filepath = img_filepath, second_keypoints_uv = keypoint_uv21_from_2D_net[0].cpu().numpy())
                 else:
-                    plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), gt_uv21 = keypoint_uv21_gt[0].cpu().numpy(), img_filepath = img_filepath)
+                    # plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), gt_uv21 = keypoint_uv21_gt[0].cpu().numpy(), img_filepath = img_filepath)
+                    plot_uv_on_image(keypoint_uv21_pred[0].cpu().numpy(), rgb_img, keypoints_vis = keypoint_vis21_gt[0].cpu().numpy().squeeze(), gt_uv21 = verify_gt_uv21[0].cpu().numpy(), img_filepath = img_filepath)
+                    
             else:
                 print(np.round(np.concatenate([keypoint_xyz21_gt[0].cpu().numpy().squeeze(), keypoint_xyz21_pred[0].cpu().numpy().squeeze()], axis=1), 4))
             # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'

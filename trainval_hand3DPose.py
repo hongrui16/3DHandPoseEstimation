@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 import platform
 import argparse
+from utils.general import _get_rot_mat
 
 from config import config
 
@@ -24,8 +25,8 @@ from config import config
 # from network.twoDimHandPoseEstimation import TwoDimHandPoseEstimation, TwoDimHandPoseWithFKEstimation
 # from network.threeDimHandPoseEstimation import ThreeDimHandPoseEstimation, OnlyThreeDimHandPoseEstimation
 # from network.MANO3DHandPoseEstimation import MANO3DHandPoseEstimation
-from network.hand3DPoseNet import Hand3DPoseNet
-from network.hand3DPosePriorNetwork import Hand3DPosePriorNetwork
+from network.Hand3DPoseNet import Hand3DPoseNet
+from network.Hand3DPosePriorNetwork import Hand3DPosePriorNetwork
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
 from criterions.loss import LossCalculation
@@ -78,11 +79,13 @@ class Worker(object):
             elif platform.system() == 'Linux':
                 if config.use_val_dataset_to_debug:
                     train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+                    shuffle = False
                 else:
                     train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='training')
+                    shuffle = True
                 bs = config.batch_size
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
-        self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=True, num_workers=config.num_workers)
+        self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=shuffle, num_workers=config.num_workers)
         self.val_loader = DataLoader(val_set, batch_size=bs, shuffle=False, num_workers=config.num_workers)
         
         current_timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
@@ -157,10 +160,143 @@ class Worker(object):
                 self.start_epoch = 0
 
         self.model.to(device)
+
+        self.input_shape = (config.batch_size, config.input_channels, 256, 256)
+        self.kp_vis21_shape = (config.batch_size, 21, 1)
+        self.kp_coord_xyz21_rel_can_shape = (config.batch_size, 21, 3)
+        self.rot_u_shape = (config.batch_size, 1)
+        self.scoremap_shape = (config.batch_size, 21, 256, 256)
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
 
         
-    def trainval(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
+    def trainval_fake(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
+        assert split in ['training', 'validation']
+        if split == 'training':
+            self.model.train()
+        else:
+            self.model.eval()
+
+        num_iter = 20
+        tbar = tqdm(range(num_iter))
+
+        width = 10  # Total width including the string length
+        formatted_split = split.rjust(width)
+        epoch_loss = []
+        epoch_loss_xyz = []
+        epoch_loss_rot = []
+        epoch_mpjpe = []
+
+        for idx in tbar: # 6 ~ 10 s
+            if fast_debug and iter > 2:
+                break
+           
+            image = torch.zeros(self.input_shape).to(self.device) + 0.5
+            bs, c, h, w = image.shape
+            image[:, :, -h//2:] = -0.5
+            keypoint_vis21_gt = torch.ones(self.kp_vis21_shape, dtype=torch.bool, device=self.device)
+
+            kp_coord_xyz21_rel_can_gt = torch.zeros(self.kp_coord_xyz21_rel_can_shape).to(self.device) + 0.4
+            kp_coord_xyz21_rel_can_gt[:, -10:] = -0.4
+            ux = torch.zeros((bs, 1)).to(self.device) + 0.5
+            uy = torch.zeros((bs, 1)).to(self.device) + 0.5
+            uz = torch.zeros((bs, 1)).to(self.device) - 0.5
+            rot_mat_gt = _get_rot_mat(ux, uy, uz)
+            scoremap = torch.zeros(self.scoremap_shape).to(self.device)
+                # keypoint_xyz_root = torch.rand(keypoint_xyz_root.shape).to(self.device)
+                # keypoint_uv21_gt = torch.rand(keypoint_uv21_gt.shape).to(self.device)
+                # keypoint_xyz21_gt = torch.rand(keypoint_xyz21_gt.shape).to(self.device)
+                # keypoint_xyz21_rel_normed_gt = torch.rand(keypoint_xyz21_rel_normed_gt.shape).to(self.device)
+                # camera_intrinsic_matrix = torch.rand(camera_intrinsic_matrix.shape).to(self.device)
+            if config.model_name == 'Hand3DPoseNet':
+                input = image
+            elif config.model_name == 'Hand3DPosePriorNetwork':
+                if config.input_channels == 24:
+                    input = torch.cat([image, scoremap], dim=1)
+                elif config.input_channels == 21:
+                    input = scoremap
+                elif config.input_channels == 3:
+                    input = image
+                else:
+                    raise ValueError('input_channels are not supported')
+            else:
+                raise ValueError('model_name not supported')
+            
+            self.optimizer.zero_grad()
+            if split == 'training':                
+                result, _, _ = self.model(input)
+                coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
+                mpjpe = None
+            else:
+                with torch.no_grad():
+                    result, _, _ = self.model(input)
+                    coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
+
+                    mpjpe = self.metric_mpjpe(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, keypoint_vis21_gt)
+            
+            # print('keypoint_xyz21_gt[0]', keypoint_xyz21_gt[0])
+            # print('keypoint_xyz21_pred[0]', keypoint_xyz21_pred[0])
+            
+            # print('keypoint_uv21_gt[0]', keypoint_uv21_gt[0])
+            # print('keypoint_uv21_pred[0]', keypoint_uv21_pred[0])
+            # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
+
+            # loss_xyz, _, _ = self.criterion(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, None, None, keypoint_vis21_gt) 
+            loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = self.criterion(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, None, None, keypoint_vis21_gt) 
+            loss_rot = torch.mean(torch.square(rot_mat_pred - rot_mat_gt))
+            # print('loss_xyz', loss_xyz)
+            # print('loss_rot', loss_rot)
+            loss = loss_xyz + loss_rot
+            if split == 'training':
+                loss.backward()
+                self.optimizer.step()
+
+            if split == 'training':
+                # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_rot: {loss_rot.item():.4f}'
+                tbar.set_description(loginfo)
+            else:
+                # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_rot: {loss_rot.item():.4f}'
+                tbar.set_description(loginfo)
+
+            # if idx % 20 == 0:
+            #     self.write_loginfo_to_txt(loginfo)
+            # if iter % 50 == 0:
+            #     gpu_info = get_gpu_utilization_as_string()
+            #     print(gpu_info)
+            #     self.write_loginfo_to_txt(gpu_info)
+            
+
+
+            iter_loss_value = round(loss.item(), 5)
+            epoch_loss.append(iter_loss_value)
+            epoch_loss_xyz.append(round(loss_xyz.item(), 5))
+            epoch_loss_rot.append(round(loss_rot.item(), 5))
+            if not split == 'training':
+                iter_mpjpe_value = round(mpjpe.item(), 5)
+                epoch_mpjpe.append(iter_mpjpe_value)
+            
+            # if config.use_val_dataset_to_debug:
+            #     break
+
+        if not split == 'training':
+            self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
+            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}, 
+                Loss_xyz: {np.round(np.mean(epoch_loss_xyz), 4)}, Loss_rot: {np.round(np.mean(epoch_loss_rot), 4)}, 
+                    MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
+            epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
+        else:
+            self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
+            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}, 
+                Loss_xyz: {np.round(np.mean(epoch_loss_xyz), 4)}, Loss_rot: {np.round(np.mean(epoch_loss_rot), 4)}'
+            epoch_mpjpe = None
+        print(epoch_info)
+        self.write_loginfo_to_txt(epoch_info)
+        self.write_loginfo_to_txt('')
+        return epoch_mpjpe
+    
+    
+    def trainval_real(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
         assert split in ['training', 'validation']
         if split == 'training':
             self.model.train()
@@ -198,7 +334,12 @@ class Worker(object):
             # keypoint_xyz21_rel_normed_gt = sample['keypoint_xyz21_rel_normed'].to(self.device) ## normalized xyz coordinates
 
             # camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
-            
+        
+            # keypoint_xyz_root = torch.rand(keypoint_xyz_root.shape).to(self.device)
+            # keypoint_uv21_gt = torch.rand(keypoint_uv21_gt.shape).to(self.device)
+            # keypoint_xyz21_gt = torch.rand(keypoint_xyz21_gt.shape).to(self.device)
+            # keypoint_xyz21_rel_normed_gt = torch.rand(keypoint_xyz21_rel_normed_gt.shape).to(self.device)
+            # camera_intrinsic_matrix = torch.rand(camera_intrinsic_matrix.shape).to(self.device)
             if config.model_name == 'Hand3DPoseNet':
                 input = image
             elif config.model_name == 'Hand3DPosePriorNetwork':
@@ -206,6 +347,8 @@ class Worker(object):
                     input = torch.cat([image, scoremap], dim=1)
                 elif config.input_channels == 21:
                     input = scoremap
+                elif config.input_channels == 3:
+                    input = image
                 else:
                     raise ValueError('input_channels are not supported')
             else:
@@ -213,12 +356,12 @@ class Worker(object):
             
             self.optimizer.zero_grad()
             if split == 'training':                
-                result, _ = self.model(input)
+                result, _, _ = self.model(input)
                 coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    result, _ = self.model(input)
+                    result, _, _ = self.model(input)
                     coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
 
                     mpjpe = self.metric_mpjpe(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, keypoint_vis21_gt)
@@ -263,7 +406,10 @@ class Worker(object):
             if not split == 'training':
                 iter_mpjpe_value = round(mpjpe.item(), 5)
                 epoch_mpjpe.append(iter_mpjpe_value)
-                    
+            
+            # if config.use_val_dataset_to_debug:
+            #     break
+
         if not split == 'training':
             self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
             epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}, MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
@@ -277,6 +423,7 @@ class Worker(object):
         self.write_loginfo_to_txt('')
         return epoch_mpjpe
     
+
     def save_checkpoint(self, state, is_best, model_name='', ouput_weight_dir = ''):
         """Saves checkpoint to disk"""
         os.makedirs(ouput_weight_dir, exist_ok=True)
@@ -297,26 +444,30 @@ class Worker(object):
     def forward(self, fast_debug = False):
         for epoch in range(self.start_epoch, config.max_epoch): 
             # _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
-            _ = self.trainval(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
-
-            mpjpe = self.trainval(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
-            checkpoint = {
-                        'epoch': epoch + 1,
-                        'state_dict': self.model.state_dict(),
-                        'optimizer': self.optimizer.state_dict(),
-                        'MPJPE': mpjpe,                
-                        }
-            if mpjpe < self.best_val_epoch_mpjpe:
-                self.best_val_epoch_mpjpe = mpjpe
-                is_best = True
+            if config.use_fake_data:
+                _ = self.trainval_fake(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
+                mpjpe = self.trainval_fake(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
             else:
-                is_best = False
+                _ = self.trainval_real(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
+                mpjpe = self.trainval_real(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
+                checkpoint = {
+                            'epoch': epoch + 1,
+                            'state_dict': self.model.state_dict(),
+                            'optimizer': self.optimizer.state_dict(),
+                            'MPJPE': mpjpe,                
+                            }
+                if mpjpe < self.best_val_epoch_mpjpe:
+                    self.best_val_epoch_mpjpe = mpjpe
+                    is_best = True
+                else:
+                    is_best = False
 
-            self.save_checkpoint(checkpoint, is_best, 'DF', self.exp_dir)
+                self.save_checkpoint(checkpoint, is_best, 'DF', self.exp_dir)
             print('')
 
 
 if __name__ == '__main__':
+
     parser = argparse.ArgumentParser(description='parameters')
     parser.add_argument('--gpuid', type=int, default=0, help='GPU index')
     parser.add_argument('--fast_debug', action='store_true', help='debug mode')

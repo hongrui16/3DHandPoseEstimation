@@ -11,7 +11,7 @@ dataset_name = 'RHD'
 shuffle=True
 num_workers = 10
 
-use_wrist_coord=True
+use_wrist_coord=False # Ture: use wrist coordinate; False: use palm center coordinate
 sigma=25.0
 hand_crop=True ## this must be True
 random_crop_to_size=False
@@ -29,16 +29,16 @@ use_val_dataset_to_debug = True
 '''network parameters''' 
 # model_name = 'TwoDimHandPose'
 # model_name = 'DiffusionHandPose'
-# model_name = 'ThreeDimHandPose'
+model_name = 'ThreeDimHandPose'
 # model_name = 'OnlyThreeDimHandPose'
 # model_name = 'TwoDimHandPoseWithFK'
 # model_name = 'MANO3DHandPose'
 # model_name = 'Hand3DPoseNet'
-# model_name = 'threeHandShapeAndPoseMANO'
-model_name = 'Hand3DPosePriorNetwork'
+# model_name = 'ThreeHandShapeAndPoseMANO'
+# model_name = 'Hand3DPosePriorNetwork'
 # model_name = 'Resnet50MANO3DHandPose'
 
-input_channels = 24 #3, 21, 24
+input_channels = 3 #3, 21, 24
 
 
 
@@ -71,7 +71,7 @@ network_regress_uv = False
 
 '''## training parameters'''
 save_log_dir = 'logs'
-max_epoch = 100
+max_epoch = 30
 finetune = False
 batch_size = 480
 # batch_size = 1
@@ -79,7 +79,7 @@ uv_from_xD = 3 ## this is for where to get output of UV coordinates in TwoDimHan
 is_inference = False
 resume_weight_path = None
 # resume_weight_path = 'logs/Hand3DPoseNet/RHD/run_2024-02-22-03-08-39/DF_model_best.pth.tar'
-
+use_fake_data = True # True: use fake data for debug; False: use real data
 
 
 '''## inference parameters'''
@@ -94,5 +94,8 @@ infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_m
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-20-45-23/DF_checkpoint.pth.tar'
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-20-21-23-46/DF_checkpoint.pth.tar'
 infer_resume_weight_path = 'logs/MANO3DHandPose/RHD/run_2024-02-22-09-31-39/DF_checkpoint.pth.tar'
+infer_resume_weight_path = 'logs/Hand3DPosePriorNetwork/RHD/run_2024-02-29-17-16-45/DF_model_best.pth.tar'
+infer_resume_weight_path = 'logs/Hand3DPosePriorNetwork/RHD/run_2024-02-29-17-16-45/DF_checkpoint.pth.tar'
+
 
 

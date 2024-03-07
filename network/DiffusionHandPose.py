@@ -16,9 +16,9 @@ from network.sub_modules.bonePrediction import BoneAnglePrediction, BoneLengthPr
 
 
 
-class Diffusion3DHandPoseEstimation(torch.nn.Module):
+class DiffusionHandPose(torch.nn.Module):
     def __init__(self, device = 'cpu'):
-        super(Diffusion3DHandPoseEstimation, self).__init__()
+        super(DiffusionHandPose, self).__init__()
         self.device = device
         self.resnet_extractor = ResNetFeatureExtractor(config.condition_feat_dim)
         self.diff_model = DiffusionJointEstimation()

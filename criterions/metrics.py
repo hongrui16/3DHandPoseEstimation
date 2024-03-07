@@ -8,17 +8,20 @@ class MPJPE(nn.Module):
         super(MPJPE, self).__init__()
 
     def forward(self, pre_xyz, gt_xyz, keypoint_vis):
-        # Calculate the normal
-        normal = torch.norm(pre_xyz - gt_xyz, dim=2) # Calculate along the third dimension
 
-        # Select valid key points through mask
-        masked_normal = torch.masked_select(normal, keypoint_vis.squeeze(-1).to(dtype=torch.bool))
+        # Calculate the Euclidean distance (without squaring)
+        distance = torch.sqrt(torch.sum((pre_xyz - gt_xyz) ** 2, dim=2))  # Calculate along the third dimension
+
+        # Apply the mask to select valid keypoints
+        # Convert keypoint_vis to bool for masking
+        masked_distance = torch.masked_select(distance, keypoint_vis.squeeze(-1).to(dtype=torch.bool))
 
         # If there are no valid keypoints, return 0 to avoid division by zero
-        if masked_normal.numel() == 0:
-            return torch.tensor(0.0, device=normal.device)
+        if masked_distance.numel() == 0:
+            return torch.tensor(0.0, device=distance.device)
 
-        # Calculate the average to get the overall mpjpe
-        avg_mpjpe = torch.mean(masked_normal)
+        # Calculate the mean to get the overall MPJPE
+        avg_mpjpe = torch.mean(masked_distance)
+        avg_mpjpe *= 1000
 
         return avg_mpjpe

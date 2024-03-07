@@ -41,7 +41,6 @@ class Resnet50MANO(nn.Module):
         self.extended_resnet50_extractor = ExtendedResNet50()
         num_output_features = self.extended_resnet50_extractor.num_output_features
 
-        
         if config.network_regress_uv:
             fc_dim = 10 + config.mano_pose_num + 3 + 3 # 10 for belta, config.mano_pose_num for theta, 3 for rot, and 3 for scale and translation
             self.mean = Variable(torch.FloatTensor([545.,128.,128.,]).to(device))

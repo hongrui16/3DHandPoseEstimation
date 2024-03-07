@@ -15,9 +15,9 @@ from utils.coordinate_trans import batch_project_xyz_to_uv
 
 
 
-class MANO3DHandPoseEstimation(torch.nn.Module):
+class MANO3DHandPose(torch.nn.Module):
     def __init__(self, device = 'cpu', mano_right_hand_path = None):
-        super(MANO3DHandPoseEstimation, self).__init__()
+        super(MANO3DHandPose, self).__init__()
         self.device = device
         self.resnet_extractor = ResNetFeatureExtractor(config.resnet_out_feature_dim)
         self.betas_predictor = MANOBetasPrediction(device, config.resnet_out_feature_dim)
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     MANO_RIGHT_pkl = '../config/mano/models/MANO_RIGHT.pkl'
     batch_size = 1
-    MANO3DHandPose = MANO3DHandPoseEstimation(device, MANO_RIGHT_pkl).to(device)
+    MANO3DHandPose = MANO3DHandPose(device, MANO_RIGHT_pkl).to(device)
     image = torch.rand(batch_size, 3, 320, 320, device = device)*255
     camera_intrinsic_matrix = torch.rand(batch_size, 3, 3, device = device)*400
     index_root_bone_length = torch.rand(batch_size, 1, device = device)
