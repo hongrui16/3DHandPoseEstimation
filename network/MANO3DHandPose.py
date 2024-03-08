@@ -27,7 +27,7 @@ class MANO3DHandPose(torch.nn.Module):
         self.mano_layer = ManoLayer(device, mano_right_hand_path, pose_num=config.mano_pose_num)
         self.diffusion_loss = torch.tensor(0, device=device)
 
-    def match_mano_to_RHD(self, mano_joints):
+    def match_mano_to_RHD(self, mano_joints, index_root_bone_length,  kp_coord_xyz_root):
         # mano_joints: [batch, 21, 3]
         # return: [batch, 21, 3]
         if not config.joint_order_switched:
@@ -47,7 +47,13 @@ class MANO3DHandPose(torch.nn.Module):
         # print('mano_joints_rel:', mano_joints_rel)
         mano_joints_rel_normalized = mano_joints_rel / scale ##normalized by length of 12->0
         # print('mano_joints_rel_normalized:', mano_joints_rel_normalized)
-        return mano_joints_rel_normalized
+        
+        kp_coord_xyz_root = kp_coord_xyz_root.unsqueeze(1)  # [bs, 3] -> [bs, 1, 3]
+        index_root_bone_length = index_root_bone_length.unsqueeze(-1)  # [bs, 1] -> [bs, 1, 1]
+        joint_xyz21 = mano_joints_rel_normalized * index_root_bone_length + kp_coord_xyz_root
+
+        return mano_joints_rel_normalized, joint_xyz21
+
 
     def forward(self, img, camera_intrinsic_matrix, index_root_bone_length, kp_coord_xyz_root, pose_x0 = None):
         # img: [batch, 3, 320, 320]
@@ -58,13 +64,12 @@ class MANO3DHandPose(torch.nn.Module):
         resnet_features = self.resnet_extractor(img)
         root_angles, other_angles = self.theta_predictor(resnet_features)
         betas = self.betas_predictor(resnet_features)
-        vertices, joint = self.mano_layer(root_angles, other_angles, betas)
-        joint_rel_normalized = self.match_mano_to_RHD(joint)
-        kp_coord_xyz_root = kp_coord_xyz_root.unsqueeze(1)  # [bs, 3] -> [bs, 1, 3]
-        index_root_bone_length = index_root_bone_length.unsqueeze(-1)  # [bs, 1] -> [bs, 1, 1]
-        joint_xyz21 = joint_rel_normalized * index_root_bone_length + kp_coord_xyz_root
-        uv21 = batch_project_xyz_to_uv(joint_xyz21, camera_intrinsic_matrix)
-        refined_joint_coord = [joint_xyz21, uv21, None]
+        vertices, joint21_3d = self.mano_layer(root_angles, other_angles, betas)
+
+        # mano_joints_rel_normalized, joint21_3d = self.match_mano_to_RHD(joint21_3d, index_root_bone_length,  kp_coord_xyz_root)
+
+        uv21 = batch_project_xyz_to_uv(joint21_3d, camera_intrinsic_matrix)
+        refined_joint_coord = [joint21_3d, uv21, None]
         return refined_joint_coord, self.diffusion_loss, [None, None]
 
 

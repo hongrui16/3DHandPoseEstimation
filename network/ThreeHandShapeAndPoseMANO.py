@@ -1,3 +1,10 @@
+
+
+'''
+this file is based on the paper '3D Hand Shape and Pose from Images in the Wild'(https://arxiv.org/abs/1902.03451)
+The code is almost the same as the original code(https://github.com/boukhayma/3dhand), but it is modified a little.
+'''
+
 import torch
 import numpy as np
 import matplotlib.pyplot as plt

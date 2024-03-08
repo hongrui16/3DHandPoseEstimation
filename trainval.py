@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 import platform
 import argparse
+from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
 
 from config import config
 
@@ -84,18 +85,18 @@ class Worker(object):
             self.model = DiffusionHandPose(device)
             self.comp_xyz_loss = True
             self.comp_diffusion_loss = True
-            self.comp_uv_loss = True
+            # self.comp_uv_loss = True
         elif config.model_name == 'ThreeDimHandPose':
             self.model = ThreeDimHandPose(device)
             self.comp_xyz_loss = True
-            self.comp_uv_loss = True
+            # self.comp_uv_loss = True
         elif config.model_name == 'OnlyThreeDimHandPose':
             self.model = OnlyThreeDimHandPose(device)
             self.comp_xyz_loss = True 
         elif config.model_name == 'MANO3DHandPose':
             self.model = MANO3DHandPose(device)
             self.comp_xyz_loss = True
-            self.comp_uv_loss = True
+            # self.comp_uv_loss = True
         elif config.model_name == 'ThreeHandShapeAndPoseMANO':
             self.model = ThreeHandShapeAndPoseMANO(device)
             self.comp_xyz_loss = True
@@ -104,7 +105,7 @@ class Worker(object):
         elif config.model_name == 'Resnet50MANO3DHandPose':
             self.model = Resnet50MANO3DHandPose(device)
             self.comp_xyz_loss = True
-            self.comp_uv_loss = True
+            # self.comp_uv_loss = True
             self.comp_hand_mask_loss = True
             self.comp_regularization_loss = True
         else:
@@ -115,7 +116,9 @@ class Worker(object):
                                          comp_uv_loss = self.comp_uv_loss, comp_hand_mask_loss = self.comp_hand_mask_loss, 
                                          comp_regularization_loss = self.comp_regularization_loss)
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)
+        # self.scheduler = StepLR(self.optimizer, step_size=15, gamma=0.9)
+        self.scheduler = CosineAnnealingLR(self.optimizer, T_max=config.max_epoch, eta_min=1e-5)
 
         self.metric_mpjpe = MPJPE()
 
@@ -210,7 +213,7 @@ class Worker(object):
 
         self.model.to(device)
         batch_size = 4
-        self.input_shape = (batch_size, config.input_channels, 256, 256)
+        self.image_shape = (batch_size, 3, 256, 256)
         self.kp_vis21_shape = (batch_size, 21, 1)
         self.kp_coord_xyz21_shape = (batch_size, 21, 3)
         self.kp_coord_21_shape = (batch_size, 21, 2)
@@ -219,6 +222,11 @@ class Worker(object):
         self.camera_intrinsic_matrix_shape = (batch_size, 3, 3)
         self.kp_xyz_root_shape = (batch_size, 3)
         self.kp_scale_shape = (batch_size, 1)
+
+        # Generate a tensor with shape [21, 3] ranging from -0.001 to 0.001
+        tensor_range = 0.001 - (-0.001)
+        self.kp_xyz21_bias = -0.001 + torch.rand(21, 3) * tensor_range
+
         print(f'log dir: {self.exp_dir}')
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
 
@@ -282,10 +290,14 @@ class Worker(object):
             camera_intrinsic_matrix = sample['camera_intrinsic_matrix'].to(self.device)
             gt_hand_mask = sample['right_hand_mask'].to(self.device)
             
-            if config.model_name == 'Resnet50MANO3DHandPose':
+            if config.input_channels == 24:
                 input = torch.cat([image, scoremap], dim=1)
-            else:
+            elif config.input_channels == 21:
+                input = scoremap
+            elif config.input_channels == 3:
                 input = image
+            else:
+                raise ValueError('input_channels are not supported')
             bs, num_points, c = keypoint_xyz21_rel_normed_gt.shape
             # print('keypoint_xyz21_rel_normed_gt.shape', keypoint_xyz21_rel_normed_gt.shape)
             pose_x0 = keypoint_xyz21_rel_normed_gt.view(bs, -1, num_points*c)
@@ -351,14 +363,6 @@ class Worker(object):
 
             tbar.set_description(loginfo)
 
-            # if idx % 20 == 0:
-            #     self.write_loginfo_to_txt(loginfo)
-            # if iter % 50 == 0:
-            #     gpu_info = get_gpu_utilization_as_string()
-            #     print(gpu_info)
-            #     self.write_loginfo_to_txt(gpu_info)
-            
-
 
             iter_loss_value = round(loss.item(), 5)
             epoch_loss.append(iter_loss_value)
@@ -369,6 +373,8 @@ class Worker(object):
             del loss
             # if config.use_val_dataset_to_debug:
             #     break
+        self.scheduler.step()
+
         epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'     
         if self.comp_diffusion_loss:
             epoch_info += f'| L_diff: {np.round(np.mean(epoch_loss_diff), 4)}'
@@ -403,7 +409,7 @@ class Worker(object):
         else:
             self.model.eval()
 
-        num_iter = 20
+        num_iter = 15
         tbar = tqdm(range(num_iter))
 
         width = 10  # Total width including the string length
@@ -421,16 +427,41 @@ class Worker(object):
             if fast_debug and iter > 2:
                 break
             
-            image = torch.zeros(self.input_shape).to(self.device) + 0.5
+            image = torch.zeros(self.image_shape).to(self.device) + 0.5
             bs, c, h, w = image.shape
             image[:, :, -h//2:] = -0.5
             keypoint_vis21_gt = torch.ones(self.kp_vis21_shape, dtype=torch.bool, device=self.device)
             index_root_bone_length = torch.ones(self.kp_scale_shape, device=self.device)
-            keypoint_xyz_root = torch.zeros(self.kp_xyz_root_shape).to(self.device)
-            keypoint_xyz21_gt = torch.zeros(self.kp_coord_xyz21_shape).to(self.device) + 0.5
-            keypoint_xyz21_gt[:, 0] = 0
-            keypoint_xyz21_gt[:, -10:] = -0.5
-            keypoint_xyz21_rel_normed_gt = keypoint_xyz21_gt
+            # keypoint_xyz_root = torch.zeros(self.kp_xyz_root_shape).to(self.device)
+            # keypoint_xyz21_gt = torch.zeros(self.kp_coord_xyz21_shape).to(self.device) + 0.5
+            # keypoint_xyz21_gt[:, 0] = 0
+            # keypoint_xyz21_gt[:, -10:] = -0.5
+
+            keypoint_xyz21_gt = torch.zeros(self.kp_coord_xyz21_shape).to(self.device)
+            keypoint_xyz21_gt[:] = torch.tensor([[ 0.0898,  0.0153,  0.0305],
+                [ 0.0097,  0.0130, -0.0118],
+                [-0.0218,  0.0168, -0.0209],
+                [-0.0343,  0.0351, -0.0211],
+                [-0.0439,  0.0581, -0.0201],
+                [-0.0023,  0.0074,  0.0097],
+                [-0.0330,  0.0155,  0.0090],
+                [-0.0442,  0.0358,  0.0099],
+                [-0.0506,  0.0611,  0.0096],
+                [ 0.0117,  0.0162,  0.0551],
+                [-0.0052,  0.0285,  0.0576],
+                [-0.0112,  0.0464,  0.0558],
+                [-0.0123,  0.0669,  0.0496],
+                [ 0.0041,  0.0099,  0.0356],
+                [-0.0221,  0.0214,  0.0319],
+                [-0.0284,  0.0453,  0.0310],
+                [-0.0263,  0.0701,  0.0260],
+                [ 0.0714,  0.0298, -0.0001],
+                [ 0.0495,  0.0438, -0.0165],
+                [ 0.0255,  0.0492, -0.0280],
+                [-0.0038,  0.0666, -0.0342]], device=self.device) + self.kp_xyz21_bias.to(self.device)
+            keypoint_xyz_root = keypoint_xyz21_gt[:,0]
+            keypoint_xyz21_rel_normed_gt = keypoint_xyz21_gt - keypoint_xyz_root.unsqueeze(1)
+
             scoremap = torch.zeros(self.scoremap_shape).to(self.device)
             camera_intrinsic_matrix = torch.zeros(self.camera_intrinsic_matrix_shape).to(self.device)
             camera_intrinsic_matrix[:, 0, 0] = 600
@@ -441,10 +472,14 @@ class Worker(object):
             keypoint_uv21_gt = batch_project_xyz_to_uv(keypoint_xyz21_gt, camera_intrinsic_matrix)
             gt_hand_mask = torch.ones(self.hand_shape, dtype=torch.bool, device=self.device)
 
-            if config.model_name == 'Resnet50MANO3DHandPose':
+            if config.input_channels == 24:
                 input = torch.cat([image, scoremap], dim=1)
-            else:
+            elif config.input_channels == 21:
+                input = scoremap
+            elif config.input_channels == 3:
                 input = image
+            else:
+                raise ValueError('input_channels are not supported')
             bs, num_points, c = keypoint_xyz21_rel_normed_gt.shape
             # print('keypoint_xyz21_rel_normed_gt.shape', keypoint_xyz21_rel_normed_gt.shape)
             pose_x0 = keypoint_xyz21_rel_normed_gt.view(bs, -1, num_points*c)
@@ -453,12 +488,14 @@ class Worker(object):
 
             self.optimizer.zero_grad()
             if split == 'training':
-                refined_joint_coord, loss_diffusion, theta_beta = self.model(input, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                refined_joint_coord, loss_diffusion, theta_beta = self.model(input, camera_intrinsic_matrix,
+                                                            index_root_bone_length, keypoint_xyz_root, pose_x0)
                 keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
                 mpjpe = None
             else:
                 with torch.no_grad():
-                    refined_joint_coord, loss_diffusion, theta_beta = self.model(input, camera_intrinsic_matrix, index_root_bone_length, keypoint_xyz_root, pose_x0)
+                    refined_joint_coord, loss_diffusion, theta_beta = self.model(input, camera_intrinsic_matrix, 
+                                                                    index_root_bone_length, keypoint_xyz_root, pose_x0)
                     keypoint_xyz21_pred, keypoint_uv21_pred, _ = refined_joint_coord
                     if config.model_name == 'TwoDimHandPose':
                         mpjpe = self.metric_mpjpe(keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt)
@@ -522,6 +559,8 @@ class Worker(object):
             del loss
             # if config.use_val_dataset_to_debug:
             #     break
+        self.scheduler.step()
+
         epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'     
         if self.comp_diffusion_loss:
             epoch_info += f' | L_diff: {np.round(np.mean(epoch_loss_diff), 4)}'

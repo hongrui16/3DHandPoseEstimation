@@ -13,6 +13,8 @@ import time
 from datetime import datetime
 import platform
 import argparse
+from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
+
 from utils.general import _get_rot_mat
 
 from config import config
@@ -68,7 +70,10 @@ class Worker(object):
             
         self.criterion = LossCalculation(device=device, comp_xyz_loss = comp_xyz_loss)
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)
+        # self.scheduler = StepLR(self.optimizer, step_size=10, gamma=0.9)
+        self.scheduler = CosineAnnealingLR(self.optimizer, T_max=config.max_epoch, eta_min=1e-5)
+
 
         self.metric_mpjpe = MPJPE()
 
@@ -160,138 +165,25 @@ class Worker(object):
             if finetune:
                 self.start_epoch = 0
 
+        self.scheduler.step()
+
         self.model.to(device)
         batch_size = 4
-        self.input_shape = (batch_size, config.input_channels, 256, 256)
+        self.image_shape = (batch_size, 3, 256, 256)
         self.kp_vis21_shape = (batch_size, 21, 1)
-        self.kp_coord_xyz21_rel_can_shape = (batch_size, 21, 3)
+        self.kp_coord_xyz21_shape = (batch_size, 21, 3)
         self.rot_u_shape = (batch_size, 1)
         self.scoremap_shape = (batch_size, 21, 256, 256)
+
+        # Generate a tensor with shape [21, 3] ranging from -0.001 to 0.001
+        tensor_range = 0.001 - (-0.001)
+        self.kp_xyz21_bias = -0.001 + torch.rand(21, 3) * tensor_range
+
+
+        print(f'log dir: {self.exp_dir}')
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
 
         
-    def trainval_fake(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
-        assert split in ['training', 'validation']
-        if split == 'training':
-            self.model.train()
-        else:
-            self.model.eval()
-
-        num_iter = 20
-        tbar = tqdm(range(num_iter))
-
-        width = 10  # Total width including the string length
-        formatted_split = split.rjust(width)
-        epoch_loss = []
-        epoch_loss_xyz = []
-        epoch_loss_rot = []
-        epoch_mpjpe = []
-
-        for idx in tbar: # 6 ~ 10 s
-            if fast_debug and iter > 2:
-                break
-           
-            image = torch.zeros(self.input_shape).to(self.device) + 0.5
-            bs, c, h, w = image.shape
-            image[:, :, -h//2:] = -0.5
-            keypoint_vis21_gt = torch.ones(self.kp_vis21_shape, dtype=torch.bool, device=self.device)
-
-            kp_coord_xyz21_rel_can_gt = torch.zeros(self.kp_coord_xyz21_rel_can_shape).to(self.device) + 0.4
-            kp_coord_xyz21_rel_can_gt[:, -10:] = -0.4
-            ux = torch.zeros((bs, 1)).to(self.device) + 0.5
-            uy = torch.zeros((bs, 1)).to(self.device) + 0.5
-            uz = torch.zeros((bs, 1)).to(self.device) - 0.5
-            rot_mat_gt = _get_rot_mat(ux, uy, uz)
-            scoremap = torch.zeros(self.scoremap_shape).to(self.device)
-                # keypoint_xyz_root = torch.rand(keypoint_xyz_root.shape).to(self.device)
-                # keypoint_uv21_gt = torch.rand(keypoint_uv21_gt.shape).to(self.device)
-                # keypoint_xyz21_gt = torch.rand(keypoint_xyz21_gt.shape).to(self.device)
-                # keypoint_xyz21_rel_normed_gt = torch.rand(keypoint_xyz21_rel_normed_gt.shape).to(self.device)
-                # camera_intrinsic_matrix = torch.rand(camera_intrinsic_matrix.shape).to(self.device)
-            if config.model_name == 'Hand3DPoseNet':
-                input = image
-            elif config.model_name == 'Hand3DPosePriorNetwork':
-                if config.input_channels == 24:
-                    input = torch.cat([image, scoremap], dim=1)
-                elif config.input_channels == 21:
-                    input = scoremap
-                elif config.input_channels == 3:
-                    input = image
-                else:
-                    raise ValueError('input_channels are not supported')
-            else:
-                raise ValueError('model_name not supported')
-            
-            self.optimizer.zero_grad()
-            if split == 'training':                
-                result, _, _ = self.model(input)
-                coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
-                mpjpe = None
-            else:
-                with torch.no_grad():
-                    result, _, _ = self.model(input)
-                    coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
-
-                    mpjpe = self.metric_mpjpe(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, keypoint_vis21_gt)
-            
-            # print('keypoint_xyz21_gt[0]', keypoint_xyz21_gt[0])
-            # print('keypoint_xyz21_pred[0]', keypoint_xyz21_pred[0])
-            
-            # print('keypoint_uv21_gt[0]', keypoint_uv21_gt[0])
-            # print('keypoint_uv21_pred[0]', keypoint_uv21_pred[0])
-            # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
-
-            # loss_xyz, _, _ = self.criterion(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, None, None, keypoint_vis21_gt) 
-            loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = self.criterion(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, None, None, keypoint_vis21_gt) 
-            loss_rot = torch.mean(torch.square(rot_mat_pred - rot_mat_gt))
-            # print('loss_xyz', loss_xyz)
-            # print('loss_rot', loss_rot)
-            loss = loss_xyz + loss_rot
-            if split == 'training':
-                loss.backward()
-                self.optimizer.step()
-
-            if split == 'training':
-                # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} | L_xyz: {loss_xyz.item():.4f} | L_rot: {loss_rot.item():.4f}'
-                tbar.set_description(loginfo)
-            else:
-                # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} | L_xyz: {loss_xyz.item():.4f} | L_rot: {loss_rot.item():.4f} | MPJPE: {mpjpe.item():.4f}'
-                tbar.set_description(loginfo)
-
-            # if idx % 20 == 0:
-            #     self.write_loginfo_to_txt(loginfo)
-            # if iter % 50 == 0:
-            #     gpu_info = get_gpu_utilization_as_string()
-            #     print(gpu_info)
-            #     self.write_loginfo_to_txt(gpu_info)
-            
-
-
-            iter_loss_value = round(loss.item(), 5)
-            epoch_loss.append(iter_loss_value)
-            epoch_loss_xyz.append(round(loss_xyz.item(), 5))
-            epoch_loss_rot.append(round(loss_rot.item(), 5))
-            if not split == 'training':
-                iter_mpjpe_value = round(mpjpe.item(), 5)
-                epoch_mpjpe.append(iter_mpjpe_value)
-            
-            # if config.use_val_dataset_to_debug:
-            #     break
-        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'
-        epoch_info += f' | Loss_xyz: {np.round(np.mean(epoch_loss_xyz), 4)} | Loss_rot: {np.round(np.mean(epoch_loss_rot), 4)}'
-        if not split == 'training':
-            self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
-            epoch_info += f' | MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
-            epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
-        else:
-            self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
-            epoch_mpjpe = None
-        print(epoch_info)
-        self.write_loginfo_to_txt(epoch_info)
-        return epoch_mpjpe
-    
     
     def trainval_real(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
         assert split in ['training', 'validation']
@@ -412,7 +304,151 @@ class Worker(object):
             
             # if config.use_val_dataset_to_debug:
             #     break
+        self.scheduler.step()
 
+        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'
+        epoch_info += f' | Loss_xyz: {np.round(np.mean(epoch_loss_xyz), 4)} | Loss_rot: {np.round(np.mean(epoch_loss_rot), 4)}'
+        if not split == 'training':
+            self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
+            epoch_info += f' | MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
+            epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
+        else:
+            self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
+            epoch_mpjpe = None
+        print(epoch_info)
+        self.write_loginfo_to_txt(epoch_info)
+        return epoch_mpjpe
+    
+    def trainval_fake(self, cur_epoch, total_epoch, loader, split, fast_debug = False):
+        assert split in ['training', 'validation']
+        if split == 'training':
+            self.model.train()
+        else:
+            self.model.eval()
+
+        num_iter = 20
+        tbar = tqdm(range(num_iter))
+
+        width = 10  # Total width including the string length
+        formatted_split = split.rjust(width)
+        epoch_loss = []
+        epoch_loss_xyz = []
+        epoch_loss_rot = []
+        epoch_mpjpe = []
+
+        for idx in tbar: # 6 ~ 10 s
+            if fast_debug and iter > 2:
+                break
+           
+            image = torch.zeros(self.image_shape).to(self.device) + 0.5
+            bs, c, h, w = image.shape
+            image[:, :, -h//2:] = -0.5
+            keypoint_vis21_gt = torch.ones(self.kp_vis21_shape, dtype=torch.bool, device=self.device)
+            keypoint_xyz21_gt = torch.zeros(self.kp_coord_xyz21_shape).to(self.device)
+            keypoint_xyz21_gt[:] = torch.tensor([[ 0.0898,  0.0153,  0.0305],
+                [ 0.0097,  0.0130, -0.0118],
+                [-0.0218,  0.0168, -0.0209],
+                [-0.0343,  0.0351, -0.0211],
+                [-0.0439,  0.0581, -0.0201],
+                [-0.0023,  0.0074,  0.0097],
+                [-0.0330,  0.0155,  0.0090],
+                [-0.0442,  0.0358,  0.0099],
+                [-0.0506,  0.0611,  0.0096],
+                [ 0.0117,  0.0162,  0.0551],
+                [-0.0052,  0.0285,  0.0576],
+                [-0.0112,  0.0464,  0.0558],
+                [-0.0123,  0.0669,  0.0496],
+                [ 0.0041,  0.0099,  0.0356],
+                [-0.0221,  0.0214,  0.0319],
+                [-0.0284,  0.0453,  0.0310],
+                [-0.0263,  0.0701,  0.0260],
+                [ 0.0714,  0.0298, -0.0001],
+                [ 0.0495,  0.0438, -0.0165],
+                [ 0.0255,  0.0492, -0.0280],
+                [-0.0038,  0.0666, -0.0342]], device=self.device) + self.kp_xyz21_bias.to(self.device)
+            keypoint_xyz_root = keypoint_xyz21_gt[:,0]
+            keypoint_xyz21_rel_normed_gt = keypoint_xyz21_gt - keypoint_xyz_root.unsqueeze(1)
+            ux = torch.zeros((bs, 1)).to(self.device) + 0.5
+            uy = torch.zeros((bs, 1)).to(self.device) + 0.5
+            uz = torch.zeros((bs, 1)).to(self.device) - 0.5
+            rot_mat_gt = _get_rot_mat(ux, uy, uz)
+            scoremap = torch.zeros(self.scoremap_shape).to(self.device)
+                # keypoint_xyz_root = torch.rand(keypoint_xyz_root.shape).to(self.device)
+                # keypoint_uv21_gt = torch.rand(keypoint_uv21_gt.shape).to(self.device)
+                # keypoint_xyz21_gt = torch.rand(keypoint_xyz21_gt.shape).to(self.device)
+                # keypoint_xyz21_rel_normed_gt = torch.rand(keypoint_xyz21_rel_normed_gt.shape).to(self.device)
+                # camera_intrinsic_matrix = torch.rand(camera_intrinsic_matrix.shape).to(self.device)
+            if config.model_name == 'Hand3DPoseNet':
+                input = image
+            elif config.model_name == 'Hand3DPosePriorNetwork':
+                if config.input_channels == 24:
+                    input = torch.cat([image, scoremap], dim=1)
+                elif config.input_channels == 21:
+                    input = scoremap
+                elif config.input_channels == 3:
+                    input = image
+                else:
+                    raise ValueError('input_channels are not supported')
+            else:
+                raise ValueError('model_name not supported')
+            
+            self.optimizer.zero_grad()
+            if split == 'training':                
+                result, _, _ = self.model(input)
+                coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
+                mpjpe = None
+            else:
+                with torch.no_grad():
+                    result, _, _ = self.model(input)
+                    coord_xyz_rel_normed, can_xyz_kps21_pred, rot_mat_pred = result
+
+                    mpjpe = self.metric_mpjpe(can_xyz_kps21_pred, keypoint_xyz21_rel_normed_gt, keypoint_vis21_gt)
+            
+            # print('keypoint_xyz21_gt[0]', keypoint_xyz21_gt[0])
+            # print('keypoint_xyz21_pred[0]', keypoint_xyz21_pred[0])
+            
+            # print('keypoint_uv21_gt[0]', keypoint_uv21_gt[0])
+            # print('keypoint_uv21_pred[0]', keypoint_uv21_pred[0])
+            # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
+
+            # loss_xyz, _, _ = self.criterion(can_xyz_kps21_pred, kp_coord_xyz21_rel_can_gt, None, None, keypoint_vis21_gt) 
+            loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = self.criterion(can_xyz_kps21_pred, keypoint_xyz21_rel_normed_gt, None, None, keypoint_vis21_gt) 
+            loss_rot = torch.mean(torch.square(rot_mat_pred - rot_mat_gt))
+            # print('loss_xyz', loss_xyz)
+            # print('loss_rot', loss_rot)
+            loss = loss_xyz + loss_rot
+            if split == 'training':
+                loss.backward()
+                self.optimizer.step()
+
+            if split == 'training':
+                # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} | L_xyz: {loss_xyz.item():.4f} | L_rot: {loss_rot.item():.4f}'
+                tbar.set_description(loginfo)
+            else:
+                # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} | L_xyz: {loss_xyz.item():.4f} | L_rot: {loss_rot.item():.4f} | MPJPE: {mpjpe.item():.4f}'
+                tbar.set_description(loginfo)
+
+            # if idx % 20 == 0:
+            #     self.write_loginfo_to_txt(loginfo)
+            # if iter % 50 == 0:
+            #     gpu_info = get_gpu_utilization_as_string()
+            #     print(gpu_info)
+            #     self.write_loginfo_to_txt(gpu_info)
+            
+
+
+            iter_loss_value = round(loss.item(), 5)
+            epoch_loss.append(iter_loss_value)
+            epoch_loss_xyz.append(round(loss_xyz.item(), 5))
+            epoch_loss_rot.append(round(loss_rot.item(), 5))
+            if not split == 'training':
+                iter_mpjpe_value = round(mpjpe.item(), 5)
+                epoch_mpjpe.append(iter_mpjpe_value)
+            
+            # if config.use_val_dataset_to_debug:
+            #     break
         epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'
         epoch_info += f' | Loss_xyz: {np.round(np.mean(epoch_loss_xyz), 4)} | Loss_rot: {np.round(np.mean(epoch_loss_rot), 4)}'
         if not split == 'training':

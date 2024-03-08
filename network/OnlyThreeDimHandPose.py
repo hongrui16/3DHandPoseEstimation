@@ -33,10 +33,11 @@ class OnlyThreeDimHandPose(torch.nn.Module):
 
     def forward(self, img, camera_intrinsic_matrix, index_root_bone_length = None, kp_coord_xyz_root = None, pose_x0 = None):
         resnet_features = self.resnet_extractor(img)
-        pose3D_xyz = (self.threeDimPoseEstimate(resnet_features) - 0.5 )*2
+        # pose3D_xyz = (self.threeDimPoseEstimate(resnet_features) - 0.5 )*2
+        pose3D_xyz = self.threeDimPoseEstimate(resnet_features)
         b, n = pose3D_xyz.shape
         pose3D_xyz = pose3D_xyz.view(b, -1, 3)
         uv21 = batch_project_xyz_to_uv(pose3D_xyz, camera_intrinsic_matrix)
 
         refined_joint_coord = [pose3D_xyz, uv21, None]
-        return refined_joint_coord, torch.tensor(0)
+        return refined_joint_coord, None, [None, None]

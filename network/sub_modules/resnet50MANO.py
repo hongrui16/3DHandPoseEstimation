@@ -23,7 +23,7 @@ class ExtendedResNet50(nn.Module):
         # Load a pre-trained ResNet18 model
         self.feature_extractor = models.resnet50(pretrained=True)
         # Modify conv1 for 21 input channels and change kernel size to 3
-        self.feature_extractor.conv1 = nn.Conv2d(24, self.feature_extractor.conv1.out_channels, kernel_size=3, stride=2, padding=1, bias=False)
+        self.feature_extractor.conv1 = nn.Conv2d(config.input_channels, self.feature_extractor.conv1.out_channels, kernel_size=3, stride=2, padding=1, bias=False)
         
         # Utilize the original fully connected layer, get the output channels
         self.num_output_features = self.feature_extractor.fc.out_features
