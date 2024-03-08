@@ -1,7 +1,7 @@
 import torch
 import math
 from config import config
-
+from utils.util import build_sequtial
 '''
 Thumb: there are 3 DOF at each of thumb carpometacarpal(CMC) and metacarpophalangeal (MCP) joints.The thumb interphalangeal (IP) joint also has
 1 DOF, 7 DOF in total.
@@ -49,27 +49,36 @@ E: pinky
 class BoneAnglePrediction(torch.nn.Module):
     def __init__(self, device = 'cpu', input_dim = config.keypoint_num*3):
         super(BoneAnglePrediction, self).__init__()
-        self.mlp1 = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, input_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(input_dim, 3),  # Predicting root joint orientation
-            torch.nn.Sigmoid()
-        )
-        self.mlp2 = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, input_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(input_dim, config.other_joint_angles_num),  # Predicting other joint angles 
-            torch.nn.Sigmoid()
-        )
-    
-    def forward(self, x):
-        root_angles = self.mlp1(x)
-        # Scale root_angles to the range of [-π, π]
-        root_angles = root_angles * 2 * math.pi - math.pi
+        
+        # self.mlp1 = torch.nn.Sequential(
+        #     torch.nn.Linear(input_dim, input_dim),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(input_dim, 3),  # Predicting root joint orientation
+        #     torch.nn.Sigmoid()
+        # )
+        
+        # self.mlp2 = torch.nn.Sequential(
+        #     torch.nn.Linear(input_dim, input_dim),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(input_dim, config.other_joint_angles_num),  # Predicting other joint angles 
+        #     torch.nn.Sigmoid()
+        # )
+        sequential = build_sequtial(input_dim, 3, 2, activation='LeakyReLU', use_sigmoid=False)
+        self.mlp1 = torch.nn.Sequential(*sequential)
+        sequential = build_sequtial(input_dim, config.other_joint_angles_num, 2, activation='LeakyReLU', use_sigmoid=False)
+        self.mlp2 = torch.nn.Sequential(*sequential)
 
+    def forward(self, x):
+        # root_angles = self.mlp1(x)
+        # # Scale root_angles to the range of [-π, π]
+        # root_angles = root_angles * 2 * math.pi - math.pi
+
+        # other_angles = self.mlp2(x)
+        # # Scale other_angles to the range of [0, π/2]
+        # other_angles = other_angles * math.pi - math.pi/2
+
+        root_angles = self.mlp1(x)
         other_angles = self.mlp2(x)
-        # Scale other_angles to the range of [0, π/2]
-        other_angles = other_angles * math.pi - math.pi/2
 
 
         return root_angles, other_angles
@@ -80,13 +89,15 @@ class BoneLengthPrediction(torch.nn.Module):
         super(BoneLengthPrediction, self).__init__()
         self.device = device
 
-        self.mlp1 = torch.nn.Sequential(
-            torch.nn.Linear(input_dim, input_dim),
-            torch.nn.ReLU(),
-            torch.nn.Linear(input_dim, config.bone_length_num),  # Predicting length
-            torch.nn.Sigmoid()
-        )
-
+        # self.mlp1 = torch.nn.Sequential(
+        #     torch.nn.Linear(input_dim, input_dim),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(input_dim, config.bone_length_num),  # Predicting length
+        #     torch.nn.Sigmoid()
+        # )
+        sequential = build_sequtial(input_dim, config.bone_length_num, 2, activation='LeakyReLU', use_sigmoid=False)
+        self.mlp1 = torch.nn.Sequential(*sequential)
+        
     def forward(self, x):
         # bone_length = self.mlp1(x) * 1.5
         # # Create a tensor of ones with the same batch size as bone_length and unsqueeze to add a dimension

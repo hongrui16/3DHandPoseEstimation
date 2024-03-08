@@ -205,16 +205,16 @@ class Worker(object):
                 self.start_epoch = 0
 
         self.model.to(device)
-
-        self.input_shape = (config.batch_size, config.input_channels, 256, 256)
-        self.kp_vis21_shape = (config.batch_size, 21, 1)
-        self.kp_coord_xyz21_shape = (config.batch_size, 21, 3)
-        self.kp_coord_21_shape = (config.batch_size, 21, 2)
-        self.scoremap_shape = (config.batch_size, 21, 256, 256)
-        self.hand_shape = (config.batch_size, 256, 256)
-        self.camera_intrinsic_matrix_shape = (config.batch_size, 3, 3)
-        self.kp_xyz_root_shape = (config.batch_size, 3)
-        self.kp_scale_shape = (config.batch_size, 1)
+        batch_size = 4
+        self.input_shape = (batch_size, config.input_channels, 256, 256)
+        self.kp_vis21_shape = (batch_size, 21, 1)
+        self.kp_coord_xyz21_shape = (batch_size, 21, 3)
+        self.kp_coord_21_shape = (batch_size, 21, 2)
+        self.scoremap_shape = (batch_size, 21, 256, 256)
+        self.hand_shape = (batch_size, 256, 256)
+        self.camera_intrinsic_matrix_shape = (batch_size, 3, 3)
+        self.kp_xyz_root_shape = (batch_size, 3)
+        self.kp_scale_shape = (batch_size, 1)
         print(f'log dir: {self.exp_dir}')
         shutil.copy('config/config.py', f'{self.exp_dir}/config.py')
 
