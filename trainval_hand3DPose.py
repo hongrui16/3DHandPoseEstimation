@@ -279,21 +279,17 @@ class Worker(object):
             
             # if config.use_val_dataset_to_debug:
             #     break
-
+        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'
+        epoch_info += f' | Loss_xyz: {np.round(np.mean(epoch_loss_xyz), 4)} | Loss_rot: {np.round(np.mean(epoch_loss_rot), 4)}'
         if not split == 'training':
             self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
-            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}, 
-                Loss_xyz: {np.round(np.mean(epoch_loss_xyz), 4)}, Loss_rot: {np.round(np.mean(epoch_loss_rot), 4)}, 
-                    MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
+            epoch_info += f' | MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
             epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
         else:
             self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
-            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}, 
-                Loss_xyz: {np.round(np.mean(epoch_loss_xyz), 4)}, Loss_rot: {np.round(np.mean(epoch_loss_rot), 4)}'
             epoch_mpjpe = None
         print(epoch_info)
         self.write_loginfo_to_txt(epoch_info)
-        self.write_loginfo_to_txt('')
         return epoch_mpjpe
     
     
@@ -309,6 +305,9 @@ class Worker(object):
         width = 10  # Total width including the string length
         formatted_split = split.rjust(width)
         epoch_loss = []
+        epoch_loss_xyz = []
+        epoch_loss_rot = []
+
         epoch_mpjpe = []
 
 
@@ -380,6 +379,8 @@ class Worker(object):
             # print('loss_xyz', loss_xyz)
             # print('loss_rot', loss_rot)
             loss = loss_xyz + loss_rot
+
+
             if split == 'training':
                 loss.backward()
                 self.optimizer.step()
@@ -399,11 +400,12 @@ class Worker(object):
             #     gpu_info = get_gpu_utilization_as_string()
             #     print(gpu_info)
             #     self.write_loginfo_to_txt(gpu_info)
-            
-
-
+        
             iter_loss_value = round(loss.item(), 5)
             epoch_loss.append(iter_loss_value)
+            epoch_loss_xyz.append(round(loss_xyz.item(), 5))
+            epoch_loss_rot.append(round(loss_rot.item(), 5))
+
             if not split == 'training':
                 iter_mpjpe_value = round(mpjpe.item(), 5)
                 epoch_mpjpe.append(iter_mpjpe_value)
@@ -411,17 +413,17 @@ class Worker(object):
             # if config.use_val_dataset_to_debug:
             #     break
 
+        epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'
+        epoch_info += f' | Loss_xyz: {np.round(np.mean(epoch_loss_xyz), 4)} | Loss_rot: {np.round(np.mean(epoch_loss_rot), 4)}'
         if not split == 'training':
             self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
-            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}, MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
+            epoch_info += f' | MPJPE: {np.round(np.mean(epoch_mpjpe), 5)}'            
             epoch_mpjpe = np.round(np.mean(epoch_mpjpe), 5)
         else:
             self.logger.add_scalar(f'{formatted_split} epoch loss', np.round(np.mean(epoch_loss), 5), global_step=cur_epoch)
-            epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'
             epoch_mpjpe = None
         print(epoch_info)
         self.write_loginfo_to_txt(epoch_info)
-        self.write_loginfo_to_txt('')
         return epoch_mpjpe
     
 
@@ -448,9 +450,11 @@ class Worker(object):
             if config.use_fake_data:
                 _ = self.trainval_fake(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
                 mpjpe = self.trainval_fake(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
+                self.write_loginfo_to_txt('')
             else:
                 _ = self.trainval_real(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
                 mpjpe = self.trainval_real(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
+                self.write_loginfo_to_txt('')
                 checkpoint = {
                             'epoch': epoch + 1,
                             'state_dict': self.model.state_dict(),
