@@ -75,6 +75,7 @@ class Worker(object):
         if config.dataset_name == 'RHD':
             if platform.system() == 'Windows':
                 train_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+                shuffle = False
                 bs = 2
             elif platform.system() == 'Linux':
                 if config.use_val_dataset_to_debug:
