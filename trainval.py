@@ -388,7 +388,6 @@ class Worker(object):
 
         print(epoch_info)
         self.write_loginfo_to_txt(epoch_info)
-        self.write_loginfo_to_txt('')
         return epoch_mpjpe
 
     
@@ -565,10 +564,12 @@ class Worker(object):
             if config.use_fake_data:
                 _ = self.trainval_fake(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
                 mpjpe = self.trainval_fake(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
+                self.write_loginfo_to_txt('')
             else:
                 _ = self.trainval_real(epoch, config.max_epoch, self.train_loader, 'training', fast_debug = fast_debug)
-
                 mpjpe = self.trainval_real(epoch, config.max_epoch, self.val_loader, 'validation', fast_debug = fast_debug)
+                self.write_loginfo_to_txt('')
+
                 checkpoint = {
                             'epoch': epoch + 1,
                             'state_dict': self.model.state_dict(),
