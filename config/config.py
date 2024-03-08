@@ -29,14 +29,15 @@ use_val_dataset_to_debug = True
 '''network parameters''' 
 # model_name = 'TwoDimHandPose'
 # model_name = 'DiffusionHandPose'
-# model_name = 'ThreeDimHandPose'
+model_name = 'ThreeDimHandPose'
 # model_name = 'OnlyThreeDimHandPose'
 # model_name = 'TwoDimHandPoseWithFK'
 # model_name = 'MANO3DHandPose'
-# model_name = 'Hand3DPoseNet'
 # model_name = 'ThreeHandShapeAndPoseMANO'
-model_name = 'Hand3DPosePriorNetwork'
 # model_name = 'Resnet50MANO3DHandPose'
+
+# model_name = 'Hand3DPoseNet'
+# model_name = 'Hand3DPosePriorNetwork'
 
 input_channels = 3 #3, 21, 24
 
@@ -71,7 +72,7 @@ network_regress_uv = False
 
 '''## training parameters'''
 save_log_dir = 'logs'
-max_epoch = 30
+max_epoch = 40
 finetune = False
 batch_size = 480
 # batch_size = 1

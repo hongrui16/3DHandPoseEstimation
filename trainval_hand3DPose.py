@@ -253,11 +253,11 @@ class Worker(object):
 
             if split == 'training':
                 # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_rot: {loss_rot.item():.4f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} | L_xyz: {loss_xyz.item():.4f} | L_rot: {loss_rot.item():.4f}'
                 tbar.set_description(loginfo)
             else:
                 # loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}'
-                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} MPJPE: {mpjpe.item():.4f}| L_xyz: {loss_xyz.item():.4f}, L_rot: {loss_rot.item():.4f}'
+                loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f} | L_xyz: {loss_xyz.item():.4f} | L_rot: {loss_rot.item():.4f} | MPJPE: {mpjpe.item():.4f}'
                 tbar.set_description(loginfo)
 
             # if idx % 20 == 0:

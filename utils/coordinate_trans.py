@@ -72,6 +72,8 @@ def batch_project_xyz_to_uv(positions_xyz, camera_intrinsic_matrix):
 
     return uv
 
+
+
 if __name__ == '__main__':
 
         
@@ -138,4 +140,8 @@ if __name__ == '__main__':
     )
         
     b_uv = batch_project_xyz_to_uv(batch_xyz, batch_intrinsic_matrix)
-    print(b_uv)
+    print('b_uv 1\n', b_uv)
+    print('')
+
+    # b_uv = project_xyz_to_uv(batch_xyz, batch_intrinsic_matrix)
+    # print('b_uv 2\n', b_uv)

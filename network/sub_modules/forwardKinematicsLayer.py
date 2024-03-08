@@ -9,7 +9,7 @@ import sys
 sys.path.append('../..')  
 
 from config import config
-
+from utils.coordinate_trans import batch_project_xyz_to_uv
     
 
 def get_right_hand_rotation_matrix(angles, device = 'cpu'):
@@ -326,7 +326,7 @@ class ForwardKinematics(nn.Module):
                 kp_coord_xyz21_absolute[:,[i, i + 3]] = kp_coord_xyz21_absolute[:,[i + 3, i]]
                 kp_coord_xyz21_absolute[:,[i + 1, i + 2]] = kp_coord_xyz21_absolute[:,[i + 2, i + 1]]
 
-        kp_coord_uv21 = self.project_xyz_to_uv(kp_coord_xyz21_absolute, self.camera_intrinsic_matrix)
+        kp_coord_uv21 = batch_project_xyz_to_uv(kp_coord_xyz21_absolute, self.camera_intrinsic_matrix)
         return [kp_coord_xyz21_absolute, kp_coord_uv21, None]
     
 
@@ -357,100 +357,100 @@ class ForwardKinematics(nn.Module):
         # positions_xyz_final = positions_xyz_abslute.permute(0, 2, 1) # [batch_size, 3, num_points]
         return positions_xyz_absloute
 
-    def project(self, positions_xyz, camera_intrinsic_matrix, index_root_bone_length):
-        """
-        Projects three-dimensional coordinates onto the image plane.
+    # def project(self, positions_xyz, camera_intrinsic_matrix, index_root_bone_length):
+    #     """
+    #     Projects three-dimensional coordinates onto the image plane.
 
-        Args:
-            positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
-            camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
-            index_root_bone_length,  shape (batch_size, 1).
-            kp_coord_xyz_root,  shape (batch_size, 3).
-        Returns:
-            The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
-        """
-        # print(f'positions_xyz.shape: {positions_xyz.shape}') #torch.Size([2, 21, 3]
-        # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
-        # print('positions_xyz[0]', positions_xyz[0])
+    #     Args:
+    #         positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
+    #         camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
+    #         index_root_bone_length,  shape (batch_size, 1).
+    #         kp_coord_xyz_root,  shape (batch_size, 3).
+    #     Returns:
+    #         The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
+    #     """
+    #     # print(f'positions_xyz.shape: {positions_xyz.shape}') #torch.Size([2, 21, 3]
+    #     # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
+    #     # print('positions_xyz[0]', positions_xyz[0])
         
 
-        # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
-        # Reshape to (bs, 3, num_points)
-        points_3d_reshaped = positions_xyz.permute(0, 2, 1)
-        # points_3d_reshaped shape is [bs, 3, num_points]
+    #     # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
+    #     # Reshape to (bs, 3, num_points)
+    #     points_3d_reshaped = positions_xyz.permute(0, 2, 1)
+    #     # points_3d_reshaped shape is [bs, 3, num_points]
 
-        index_root_bone_length_expanded = index_root_bone_length.unsqueeze(2)
-        points_3d_reshaped = points_3d_reshaped * index_root_bone_length_expanded
+    #     index_root_bone_length_expanded = index_root_bone_length.unsqueeze(2)
+    #     points_3d_reshaped = points_3d_reshaped * index_root_bone_length_expanded
 
 
-        # Use batch matrix multiplication
-        # camera_intrinsic_matrix shape is [bs, 3, 3]
-        p = torch.bmm(camera_intrinsic_matrix, points_3d_reshaped)
+    #     # Use batch matrix multiplication
+    #     # camera_intrinsic_matrix shape is [bs, 3, 3]
+    #     p = torch.bmm(camera_intrinsic_matrix, points_3d_reshaped)
 
-        # The shape of p should now be [bs, 3, num_points]
+    #     # The shape of p should now be [bs, 3, num_points]
 
-        # Check if the last row of p has any zero values and replace with a small non-zero value to avoid dividing by zero
-        p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[ :, -1, :])
+    #     # Check if the last row of p has any zero values and replace with a small non-zero value to avoid dividing by zero
+    #     p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[ :, -1, :])
         
-        # print(f'p.shape: {p.shape}') # should be [bs, num_points, 2]
+    #     # print(f'p.shape: {p.shape}') # should be [bs, num_points, 2]
 
-        #Normalize to get final 2D coordinates
-        #The shape becomes [bs, num_points, 2]
-        uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
+    #     #Normalize to get final 2D coordinates
+    #     #The shape becomes [bs, num_points, 2]
+    #     uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
 
-        # print(f'uv.shape: {uv.shape}') # should be [bs, num_points, 2]
+    #     # print(f'uv.shape: {uv.shape}') # should be [bs, num_points, 2]
 
-        # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
-        # uv = uv.t().view(bs, num_points, 2)
-        # print('uv[0]', uv[0])
+    #     # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
+    #     # uv = uv.t().view(bs, num_points, 2)
+    #     # print('uv[0]', uv[0])
 
-        return uv
+    #     return uv
 
-    def project_xyz_to_uv(self, positions_xyz, camera_intrinsic_matrix):
-        """
-        Projects three-dimensional coordinates onto the image plane.
+    # def project_xyz_to_uv(self, positions_xyz, camera_intrinsic_matrix):
+    #     """
+    #     Projects three-dimensional coordinates onto the image plane.
 
-        Args:
-            positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
-            camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
-        Returns:
-            The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
-        """
-        # print(f'positions_xyz.shape: {positions_xyz.shape}') #torch.Size([2, 21, 3]
-        # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
-        # print('positions_xyz[0]', positions_xyz[0])
+    #     Args:
+    #         positions_xyz: Three-dimensional coordinates, shape (batch_size, num_points, 3).
+    #         camera_intrinsic_matrix: Camera intrinsic parameter matrix, shape is (batch_size, 3, 3).
+    #     Returns:
+    #         The projected two-dimensional UV coordinates, shape (batch_size, num_points, 2).
+    #     """
+    #     # print(f'positions_xyz.shape: {positions_xyz.shape}') #torch.Size([2, 21, 3]
+    #     # print(f'camera_intrinsic_matrix.shape: {camera_intrinsic_matrix.shape}') #torch.Size([2, 21, 3]
+    #     # print('positions_xyz[0]', positions_xyz[0])
         
 
-        # bs, num_points, _ = positions_xyz.shape
+    #     # bs, num_points, _ = positions_xyz.shape
 
-        # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
-        # Reshape to (bs, 3, num_points)
-        points_3d_reshaped = positions_xyz.permute(0, 2, 1)
-        # points_3d_reshaped shape is [bs, 3, num_points]
+    #     # Adjust the shape of positions_xyz to match camera_intrinsic_matrix
+    #     # Reshape to (bs, 3, num_points)
+    #     points_3d_reshaped = positions_xyz.permute(0, 2, 1)
+    #     # points_3d_reshaped shape is [bs, 3, num_points]
 
 
-        # Use batch matrix multiplication
-        # camera_intrinsic_matrix shape is [bs, 3, 3]
-        p = torch.bmm(camera_intrinsic_matrix, points_3d_reshaped)
+    #     # Use batch matrix multiplication
+    #     # camera_intrinsic_matrix shape is [bs, 3, 3]
+    #     p = torch.bmm(camera_intrinsic_matrix, points_3d_reshaped)
 
-        # The shape of p should now be [bs, 3, num_points]
+    #     # The shape of p should now be [bs, 3, num_points]
 
-        # Check if the last row of p has any zero values and replace with a small non-zero value to avoid dividing by zero
-        p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[ :, -1, :])
+    #     # Check if the last row of p has any zero values and replace with a small non-zero value to avoid dividing by zero
+    #     p[:, -1, :] = torch.where(p[:, -1, :] == 0, torch.tensor(1e-10, dtype=p.dtype, device=p.device), p[ :, -1, :])
         
-        # print(f'p.shape: {p.shape}') # should be [bs, num_points, 2]
+    #     # print(f'p.shape: {p.shape}') # should be [bs, num_points, 2]
 
-        #Normalize to get final 2D coordinates
-        #The shape becomes [bs, num_points, 2]
-        uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
+    #     #Normalize to get final 2D coordinates
+    #     #The shape becomes [bs, num_points, 2]
+    #     uv = (p[:, :2, :] / p[:, -1, :].unsqueeze(1)).permute(0, 2, 1)
 
-        # print(f'uv.shape: {uv.shape}') # should be [bs, num_points, 2]
+    #     # print(f'uv.shape: {uv.shape}') # should be [bs, num_points, 2]
 
-        # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
-        # uv = uv.t().view(bs, num_points, 2)
-        # print('uv[0]', uv[0])
+    #     # Convert the shape of uv from (2, bs*num) to (bs, num, 2)
+    #     # uv = uv.t().view(bs, num_points, 2)
+    #     # print('uv[0]', uv[0])
 
-        return uv
+    #     return uv
 
 
 

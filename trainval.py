@@ -111,7 +111,9 @@ class Worker(object):
             raise ValueError(f'config.model_name {config.model_name} is not supported')
         
             
-        self.criterion = LossCalculation(device=device, comp_xyz_loss = self.comp_xyz_loss, comp_uv_loss = self.comp_uv_loss, comp_hand_mask_loss = self.comp_hand_mask_loss, comp_regularization_loss = self.comp_regularization_loss)
+        self.criterion = LossCalculation(device=device, comp_xyz_loss = self.comp_xyz_loss, 
+                                         comp_uv_loss = self.comp_uv_loss, comp_hand_mask_loss = self.comp_hand_mask_loss, 
+                                         comp_regularization_loss = self.comp_regularization_loss)
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 
@@ -131,6 +133,7 @@ class Worker(object):
                     shuffle = True
                 bs = config.batch_size
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+
         self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=shuffle, num_workers=config.num_workers)
         self.val_loader = DataLoader(val_set, batch_size=bs, shuffle=False, num_workers=config.num_workers)
         
@@ -434,6 +437,7 @@ class Worker(object):
             camera_intrinsic_matrix[:, 1, 1] = 600
             camera_intrinsic_matrix[:, 0, 2] = 300
             camera_intrinsic_matrix[:, 1, 2] = 300
+            camera_intrinsic_matrix[:, 2, 2] = 1
             keypoint_uv21_gt = batch_project_xyz_to_uv(keypoint_xyz21_gt, camera_intrinsic_matrix)
             gt_hand_mask = torch.ones(self.hand_shape, dtype=torch.bool, device=self.device)
 
@@ -470,33 +474,34 @@ class Worker(object):
             # print('keypoint_uv21_pred.shape', keypoint_uv21_pred.shape)
             theta, beta = theta_beta
             loss = torch.tensor(0, dtype=torch.float, device=self.device)
-            loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = self.criterion(keypoint_xyz21_pred, keypoint_xyz21_gt, keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt, hand_mask = gt_hand_mask, theta = theta, beta = beta) 
+            loss_xyz, loss_uv, loss_contrast, loss_hand_mask, loss_regularization = self.criterion(keypoint_xyz21_pred, 
+            keypoint_xyz21_gt, keypoint_uv21_pred, keypoint_uv21_gt, keypoint_vis21_gt, hand_mask = gt_hand_mask, theta = theta, beta = beta) 
             
             loginfo = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Iter: {idx:05d}/{num_iter:05d}, Loss: {loss.item():.4f}'
             if not split == 'training':                            
-                loginfo += f'| MPJPE: {mpjpe.item():.4f}'
+                loginfo += f' | MPJPE: {mpjpe.item():.4f}'
             if self.comp_diffusion_loss:
-                loginfo += f'| L_diff: {loss_diffusion.item():.4f}'                
+                loginfo += f' | L_diff: {loss_diffusion.item():.4f}'                
                 epoch_loss_diff.append(loss_diffusion.item())
                 loss += loss_diffusion
             if self.comp_xyz_loss:
-                loginfo += f'| L_xyz: {loss_xyz.item():.4f}'
+                loginfo += f' | L_xyz: {loss_xyz.item():.4f}'
                 epoch_loss_xyz.append(loss_xyz.item())
                 loss += loss_xyz
             if self.comp_uv_loss:
-                loginfo += f'| L_uv: {loss_uv.item():.4f}'
+                loginfo += f' | L_uv: {loss_uv.item():.4f}'
                 epoch_loss_uv.append(loss_uv.item())
                 loss += loss_uv/100000
             if self.comp_contrast_loss:
-                loginfo += f'| L_cont: {loss_contrast.item():.4f}'
+                loginfo += f' | L_cont: {loss_contrast.item():.4f}'
                 epoch_loss_contrast.append(loss_contrast.item())
                 loss += loss_contrast
             if self.comp_hand_mask_loss:    
-                loginfo += f'| L_hmask: {loss_hand_mask.item():.4f}'
+                loginfo += f' | L_hmask: {loss_hand_mask.item():.4f}'
                 epoch_loss_hand_mask.append(loss_hand_mask.item())
                 loss += loss_hand_mask
             if self.comp_regularization_loss:
-                loginfo += f'| L_regu: {loss_regularization.item():.4f}'
+                loginfo += f' | L_regu: {loss_regularization.item():.4f}'
                 epoch_loss_regularization.append(loss_regularization.item())
                 loss += loss_regularization
         
@@ -519,17 +524,17 @@ class Worker(object):
             #     break
         epoch_info = f'{formatted_split} Epoch: {cur_epoch:03d}/{total_epoch:03d}, Loss: {np.round(np.mean(epoch_loss), 4)}'     
         if self.comp_diffusion_loss:
-            epoch_info += f'| L_diff: {np.round(np.mean(epoch_loss_diff), 4)}'
+            epoch_info += f' | L_diff: {np.round(np.mean(epoch_loss_diff), 4)}'
         if self.comp_xyz_loss:
-            epoch_info += f'| L_xyz: {np.round(np.mean(epoch_loss_xyz), 4)}'
+            epoch_info += f' | L_xyz: {np.round(np.mean(epoch_loss_xyz), 4)}'
         if self.comp_uv_loss:
-            epoch_info += f'| L_uv: {np.round(np.mean(epoch_loss_uv), 4)}'
+            epoch_info += f' | L_uv: {np.round(np.mean(epoch_loss_uv), 4)}'
         if self.comp_contrast_loss:
-            epoch_info += f'| L_cont: {np.round(np.mean(epoch_loss_contrast), 4)}'
+            epoch_info += f' | L_cont: {np.round(np.mean(epoch_loss_contrast), 4)}'
         if self.comp_hand_mask_loss:    
-            epoch_info += f'| L_hmask: {np.round(np.mean(epoch_loss_hand_mask), 4)}'
+            epoch_info += f' | L_hmask: {np.round(np.mean(epoch_loss_hand_mask), 4)}'
         if self.comp_regularization_loss:
-            epoch_info += f'| L_regu: {np.round(np.mean(epoch_loss_regularization), 4)}'
+            epoch_info += f' | L_regu: {np.round(np.mean(epoch_loss_regularization), 4)}'
         if not split == 'training':
             self.logger.add_scalar(f'{formatted_split} epoch MPJPE', np.round(np.mean(epoch_mpjpe), 5), global_step=cur_epoch)
             epoch_info +=  f'\nMPJPE: {np.round(np.mean(epoch_mpjpe), 5)}' 
