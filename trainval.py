@@ -268,7 +268,7 @@ class Worker(object):
 
 
         for idx, sample in enumerate(tbar): # 6 ~ 10 s
-            if fast_debug and iter > 2:
+            if fast_debug and idx > 2:
                 break
             # if idx < 112:
             #     continue
@@ -424,7 +424,7 @@ class Worker(object):
         epoch_mpjpe = []
 
         for idx in tbar: # 6 ~ 10 s
-            if fast_debug and iter > 2:
+            if fast_debug and idx > 2:
                 break
             
             image = torch.zeros(self.image_shape).to(self.device) + 0.5
@@ -603,7 +603,7 @@ class Worker(object):
             loss_file.write(loginfo+'\n')
         loss_file.close()# 
     
-    def forward(self, fast_debug = False):
+    def run(self, fast_debug = False):
         for epoch in range(self.start_epoch, config.max_epoch): 
             # _ = self.trainval(epoch, max_epoch, self.val_loader, 'training', fast_debug = fast_debug)
             if config.use_fake_data:
@@ -641,7 +641,7 @@ if __name__ == '__main__':
     fast_debug = args.fast_debug
     # fast_debug = True
     worker = Worker(config.gpu_idx)
-    worker.forward(fast_debug)
+    worker.run(fast_debug)
 
     # gpu_info = get_gpu_utilization_as_string()
     # print('gpu_info', gpu_info)
