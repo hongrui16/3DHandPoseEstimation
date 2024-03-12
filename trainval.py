@@ -646,5 +646,5 @@ if __name__ == '__main__':
     # gpu_info = get_gpu_utilization_as_string()
     # print('gpu_info', gpu_info)
 
-# salloc -p gpuq -q gpu --nodes=1 --ntasks-per-node=30 --gres=gpu:A100.80gb:1 --mem=80gb -t 0-24:00:00
-# salloc -p gpuq -q gpu --nodes=1 --ntasks-per-node=30 --gres=gpu:A100.40gb:1 --mem=50gb -t 0-24:00:00
+# salloc -p gpuq -q gpu --nodes=1 --ntasks-per-node=15 --gres=gpu:A100.80gb:1 --mem=80gb -t 0-24:00:00
+# salloc -p gpuq -q gpu --nodes=1 --ntasks-per-node=15 --gres=gpu:A100.40gb:1 --mem=50gb -t 0-24:00:00
