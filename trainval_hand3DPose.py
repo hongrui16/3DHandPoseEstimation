@@ -31,6 +31,7 @@ from network.Hand3DPoseNet import Hand3DPoseNet
 from network.Hand3DPosePriorNetwork import Hand3DPosePriorNetwork
 
 from dataloader.RHD.dataloaderRHD import RHD_HandKeypointsDataset
+from dataloader.InterHand2M6.dataloaderInterHand2M6 import InterHand2M6Dataset
 from criterions.loss import LossCalculation
 from criterions.metrics import MPJPE
 from utils.get_gpu_info import *
@@ -38,7 +39,7 @@ from utils.get_gpu_info import *
 config.is_inference = False
 
 class Worker(object):
-    def __init__(self, gpu_index = None):
+    def __init__(self, gpu_index = None, args = None):
         
         cuda_valid = torch.cuda.is_available()
         if cuda_valid:
@@ -91,6 +92,20 @@ class Worker(object):
                     shuffle = True
                 bs = config.batch_size
             val_set = RHD_HandKeypointsDataset(root_dir=config.dataset_root_dir, set_type='evaluation')
+        elif config.dataset_name == 'InterHand2.6M':
+            if platform.system() == 'Windows':
+                train_set = InterHand2M6Dataset(root_dir=config.dataset_root_dir, set_type='val', fast_trainval = config.fast_trainval)
+                shuffle = False
+                bs = 2
+            elif platform.system() == 'Linux':
+                if config.use_val_dataset_to_debug:
+                    train_set = InterHand2M6Dataset(root_dir=config.dataset_root_dir, set_type='val', fast_trainval = config.fast_trainval)
+                    shuffle = False
+                else:
+                    train_set = InterHand2M6Dataset(root_dir=config.dataset_root_dir, set_type='train', fast_trainval = config.fast_trainval)
+                    shuffle = True
+                bs = config.batch_size
+            val_set = InterHand2M6Dataset(root_dir=config.dataset_root_dir, set_type='val')
         self.train_loader = DataLoader(train_set, batch_size=bs, shuffle=shuffle, num_workers=config.num_workers)
         self.val_loader = DataLoader(val_set, batch_size=bs, shuffle=False, num_workers=config.num_workers)
         
@@ -512,12 +527,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='parameters')
     parser.add_argument('--gpuid', type=int, default=0, help='GPU index')
     parser.add_argument('--fast_debug', action='store_true', help='debug mode')
+    parser.add_argument('--fast_trainval', action='store_true', default=False, help='debug mode')
 
     args = parser.parse_args()
     config.gpu_idx = args.gpuid
     fast_debug = args.fast_debug
     # fast_debug = True
-    worker = Worker(config.gpu_idx)
+    worker = Worker(config.gpu_idx, args = args)
     worker.run(fast_debug)
 
     # gpu_info = get_gpu_utilization_as_string()

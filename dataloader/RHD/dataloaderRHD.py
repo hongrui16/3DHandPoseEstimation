@@ -157,7 +157,7 @@ class RHD_HandKeypointsDataset(Dataset):
 
         # 6. Read visibility
         keypoint_vis = torch.tensor(keypoint_vis, dtype=torch.bool)
-
+        print('keypoint_vis.shape', keypoint_vis.shape)
         # Calculate palm visibility
         if not self.use_wrist_coord:
             palm_vis_l = (keypoint_vis[0] | keypoint_vis[12]).unsqueeze(0)
@@ -254,11 +254,11 @@ class RHD_HandKeypointsDataset(Dataset):
         # Set of 21 for visibility
         keypoint_vis_left = keypoint_vis[:21]
         keypoint_vis_right = keypoint_vis[-21:]
-        # print('keypoint_vis_left.shape', keypoint_vis_left.shape)
-        # print('keypoint_vis_right.shape', keypoint_vis_right.shape)        
+        print('keypoint_vis_left.shape', keypoint_vis_left.shape)
+        print('keypoint_vis_right.shape', keypoint_vis_right.shape)        
         keypoint_vis21 = torch.where(cond_left[:, 0:1], keypoint_vis_left, keypoint_vis_right)
         data_dict['keypoint_vis21'] = keypoint_vis21
-        # print('keypoint_vis21.shape', keypoint_vis21.shape)
+        print('keypoint_vis21.shape', keypoint_vis21.shape)
 
         # Set of 21 for UV coordinates
         keypoint_uv_left = keypoint_uv[:21, :]
@@ -536,7 +536,11 @@ class RHD_HandKeypointsDataset(Dataset):
 
     @staticmethod
     def create_multiple_gaussian_map(coords_uv, output_size, sigma, valid_vec=None):
-        # print('valid_vec.shape', valid_vec.shape)
+        print('coords_uv.shape', coords_uv.shape)
+        print('output_size', output_size)
+        print('coords_uv.shape', coords_uv.shape)
+        print('valid_vec.shape', valid_vec.shape)
+
 
         sigma = torch.tensor(sigma, dtype=torch.float32)
         assert len(output_size) == 2
@@ -590,7 +594,7 @@ if __name__ == '__main__':
     if platform.system() == 'Windows':
         dataset_dir = '../../dataset/RHD'
     elif platform.system() == 'Linux':
-        dataset_dir = '/home/rhong5/research_pro/hand_modeling_pro/dataset/RHD/RHD'
+        dataset_dir = '/scratch/rhong5/dataset/RHD/'
     
     
     num_workers = 15
@@ -700,10 +704,11 @@ if __name__ == '__main__':
         break
         if i > 8:
             break
-    # print('right_hand_mask.shape', right_hand_mask.shape) # torch.Size([1, 256, 256])
-    # scoremap_0th_channel = scoremap[0, :, :, 0].cpu().numpy()
-    # plt.imshow(scoremap_0th_channel, cmap='gray')  # 'gray' colormap for single-channel visualization
-    
+    print('right_hand_mask.shape', right_hand_mask.shape) # torch.Size([1, 256, 256])
+    scoremap_0th_channel = scoremap[0, 0, :, :].cpu().numpy()
+    plt.imshow(scoremap_0th_channel, cmap='gray')  # 'gray' colormap for single-channel visualization
+    plt.savefig('scoremap_0th_channel.png')
+
     right_hand_mask = right_hand_mask.cpu().squeeze().numpy()
 
     # Use matplotlib to visualize the 0th channel
